@@ -1,0 +1,48 @@
+---
+import { cale } from '../lib/cale';
+import '../styles/global.css';
+import Antet from '../components/Antet.astro';
+import Subsol from '../components/Subsol.astro';
+
+interface Props {
+  titlu: string;
+  descriere?: string;
+  /** Pagina hărții ocupă tot ecranul și nu are footer în flux. */
+  ecranPlin?: boolean;
+}
+
+const { titlu, descriere, ecranPlin = false } = Astro.props;
+---
+
+<!doctype html>
+<html lang="ro">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{titlu}</title>
+    {descriere && <meta name="description" content={descriere} />}
+    <meta name="robots" content="noindex, nofollow" />
+    <link rel="icon" href={cale("/favicon.svg")} type="image/svg+xml" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Newsreader:opsz,wght@6..72,400;6..72,500&display=swap"
+    />
+  </head>
+  <body class={ecranPlin ? 'h-dvh overflow-hidden' : ''}>
+    <Antet />
+    {
+      ecranPlin ? (
+        <slot />
+      ) : (
+        <>
+          <main style="padding-top: var(--header-h)">
+            <slot />
+          </main>
+          <Subsol />
+        </>
+      )
+    }
+  </body>
+</html>

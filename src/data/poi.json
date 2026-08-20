@@ -1,0 +1,201 @@
+{
+ "type": "FeatureCollection",
+ "features": [
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     26.1026,
+     44.5683
+    ]
+   },
+   "properties": {
+    "nume": "Aeroportul Henri Coandă",
+    "categorie": "transport"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     26.0854,
+     44.6054
+    ]
+   },
+   "properties": {
+    "nume": "Therme București",
+    "categorie": "agrement"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     26.1027,
+     44.6532
+    ]
+   },
+   "properties": {
+    "nume": "EdenLand Park",
+    "categorie": "agrement"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     26.1629,
+     44.7066
+    ]
+   },
+   "properties": {
+    "nume": "Lacul Snagov",
+    "categorie": "agrement"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     26.0923,
+     44.5252
+    ]
+   },
+   "properties": {
+    "nume": "Pădurea Băneasa",
+    "categorie": "agrement"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     26.0895,
+     44.5073
+    ]
+   },
+   "properties": {
+    "nume": "Băneasa Shopping City",
+    "categorie": "comerț"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     26.1197,
+     44.6461
+    ]
+   },
+   "properties": {
+    "nume": "Spitalul Agrippa Ionescu",
+    "categorie": "sănătate"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     26.0876,
+     44.4517
+    ]
+   },
+   "properties": {
+    "nume": "Piața Victoriei",
+    "categorie": "acces"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     26.073255,
+     44.602511
+    ]
+   },
+   "properties": {
+    "nume": "Kaufland Balotești",
+    "categorie": "comerț"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     26.066873,
+     44.604629
+    ]
+   },
+   "properties": {
+    "nume": "Carrefour Balotești",
+    "categorie": "comerț"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     26.032287,
+     44.593293
+    ]
+   },
+   "properties": {
+    "nume": "Lidl Corbeanca",
+    "categorie": "comerț"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     26.074018,
+     44.610736
+    ]
+   },
+   "properties": {
+    "nume": "Școala Gimnazială nr. 1 Balotești",
+    "categorie": "școală"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     26.039755,
+     44.593305
+    ]
+   },
+   "properties": {
+    "nume": "Școala nr. 1 Corbeanca",
+    "categorie": "școală"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     26.110972,
+     44.623792
+    ]
+   },
+   "properties": {
+    "nume": "Școala Gimnazială nr. 2 Balotești",
+    "categorie": "școală"
+   }
+  }
+ ]
+}

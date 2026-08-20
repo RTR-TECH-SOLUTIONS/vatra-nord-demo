@@ -1,0 +1,50 @@
+name: Deploy demo pe GitHub Pages
+
+# Site-ul real va sta pe domeniul clientului, în rădăcină. Workflow-ul ăsta ține
+# doar copia de previzualizare de pe GitHub Pages: se construiește cu alt
+# `site`/`base` și cu robots.txt care interzice indexarea, ca previzualizarea să
+# nu ajungă în căutări.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Blochează indexarea copiei de preview
+        run: |
+          printf 'User-agent: *\nDisallow: /\n' > public/robots.txt
+
+      - name: Build Astro
+        uses: withastro/action@v3
+        with:
+          node-version: 24
+        env:
+          SITE_URL: https://rtr-tech-solutions.github.io
+          SITE_BASE: /vatra-nord-demo
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@v4

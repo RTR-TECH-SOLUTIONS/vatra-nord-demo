@@ -1,0 +1,579 @@
+---
+import Baza from '../layouts/Baza.astro';
+import proiecteJson from '../data/proiecte.json';
+import type { Proiect } from '../lib/loturi';
+import { FIRMA } from '../lib/firma';
+
+const proiecte = proiecteJson as unknown as Proiect[];
+---
+
+<Baza titlu={`Panou de parcelare · ${FIRMA.nume}`} ecranPlin>
+  <script type="application/json" id="date-proiecte" set:html={JSON.stringify(proiecte)} />
+
+  <div class="ecran-admin">
+    <div id="harta-admin" class="panza-admin"></div>
+    <p id="admin-incarcare" class="incarcare">Se încarcă panoul…</p>
+
+    <div class="comutator-basemap panou" role="group" aria-label="Fundal hartă">
+      <button type="button" data-basemap="satelit" aria-pressed="true">Satelit</button>
+      <button type="button" data-basemap="harta" aria-pressed="false">Hartă</button>
+    </div>
+
+    <aside class="panou-admin">
+      <div class="panou-admin__continut">
+        <header>
+          <h1>Panou de parcelare</h1>
+          <p class="explicatie">
+            Aici se creează și se administrează loturile. Poți genera o parcelare întreagă dintr-un
+            contur, poți desena un lot de mână, îl poți împărți sau uni cu vecinul, și poți schimba
+            starea oricărui lot deja publicat.
+          </p>
+        </header>
+
+        <div class="grup">
+          <span class="eticheta-grup">Unealtă</span>
+          <div class="unelte" role="group" aria-label="Unealtă">
+            <button type="button" data-unealta="navigare" aria-pressed="true">Selectează</button>
+            <button type="button" data-unealta="lot-nou" aria-pressed="false">Lot nou</button>
+            <button type="button" data-unealta="imparte" aria-pressed="false">Împarte</button>
+            <button type="button" data-unealta="teren" aria-pressed="false">Teren de parcelat</button>
+            <button type="button" data-unealta="pin" aria-pressed="false">Pin proprietate</button>
+          </div>
+          <div class="rand-butoane">
+            <button type="button" id="inapoi" class="buton buton-secundar" disabled>Anulează (Ctrl+Z)</button>
+            <select id="sari-la" aria-label="Sari la o parcelare">
+              <option value="">Sari la parcelare…</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="grup">
+          <div class="grup__cap">
+            <span class="eticheta-grup">Lotul selectat</span>
+            <span class="nr-selectie cifre" id="nr-selectie"></span>
+          </div>
+
+          <p id="fara-selectie" class="ajutor">
+            Click pe un lot de pe hartă. Shift plus click selectează mai multe, ca să le poți uni.
+          </p>
+
+          <div id="formular-lot" hidden>
+            <div class="pereche">
+              <div class="camp-admin">
+                <label for="lot-cod">Cod</label>
+                <input type="text" id="lot-cod" autocomplete="off" />
+              </div>
+              <div class="camp-admin">
+                <label for="lot-pret">Preț (€/m²)</label>
+                <input type="number" id="lot-pret" min="1" step="1" />
+              </div>
+            </div>
+            <div class="camp-admin">
+              <label for="lot-status">Stare</label>
+              <select id="lot-status"></select>
+            </div>
+            <div class="camp-admin">
+              <label for="lot-observatii">Observații</label>
+              <input type="text" id="lot-observatii" autocomplete="off" />
+            </div>
+
+            <dl class="calculate cifre">
+              <div><dt>Suprafață</dt><dd id="lot-suprafata">—</dd></div>
+              <div><dt>Deschidere</dt><dd id="lot-front">—</dd></div>
+              <div><dt>Formă</dt><dd id="lot-laturi">—</dd></div>
+              <div><dt>Preț total</dt><dd id="lot-total">—</dd></div>
+              <div><dt>Se poate construi</dt><dd id="lot-amprenta">—</dd></div>
+              <div><dt>Desfășurat</dt><dd id="lot-desfasurata">—</dd></div>
+            </dl>
+
+            <div class="rand-butoane">
+              <button type="button" id="modifica-forma" class="buton buton-secundar" disabled>Modifică forma</button>
+              <button type="button" id="gata-forma" class="buton buton-secundar">Gata</button>
+            </div>
+            <div class="rand-butoane">
+              <button type="button" id="uneste" class="buton buton-secundar" disabled>Unește cele două</button>
+              <button type="button" id="sterge-lot" class="buton buton-secundar" disabled>Șterge</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="grup" id="grup-pin" hidden>
+          <div class="grup__cap">
+            <span class="eticheta-grup">Pinul selectat</span>
+            <span class="nr-selectie cifre" id="nr-pinuri"></span>
+          </div>
+
+          <p id="fara-pin" class="ajutor">
+            Alege unealta „Pin proprietate” și dă click pe hartă acolo unde e terenul. Un pin e
+            pentru proprietățile care nu au parcelare: arată unde e, cum se cheamă și dacă mai e
+            liberă.
+          </p>
+
+          <div id="formular-pin" hidden>
+            <div class="pereche">
+              <div class="camp-admin">
+                <label for="pin-nume">Nume</label>
+                <input type="text" id="pin-nume" autocomplete="off" />
+              </div>
+              <div class="camp-admin">
+                <label for="pin-marca">Marcă</label>
+                <input type="text" id="pin-marca" maxlength="3" autocomplete="off" />
+              </div>
+            </div>
+            <div class="camp-admin">
+              <label for="pin-stare">Stare</label>
+              <select id="pin-stare"></select>
+            </div>
+            <div class="camp-admin">
+              <label for="pin-detaliu">Detaliu</label>
+              <input type="text" id="pin-detaliu" autocomplete="off" placeholder="4.800 m², deschidere 40 m" />
+            </div>
+            <div class="camp-admin">
+              <label for="pin-legatura">Link (opțional)</label>
+              <input type="text" id="pin-legatura" autocomplete="off" placeholder="/parcelari/saftica" />
+            </div>
+
+            <p class="ajutor">Trage discul pe hartă ca să muți pinul.</p>
+
+            <div class="rand-butoane">
+              <button type="button" id="sterge-pin" class="buton buton-secundar">Șterge pinul</button>
+            </div>
+          </div>
+        </div>
+
+        <details class="grup">
+          <summary class="eticheta-grup">Parcelare automată dintr-un teren</summary>
+
+          <button type="button" id="incarca-obstacole" class="buton buton-secundar w-full" disabled>
+            Încarcă drumurile și clădirile din zonă
+          </button>
+          <p class="ajutor">
+            Se iau din OpenStreetMap și se scad din teren, ca niciun lot să nu cadă peste o stradă
+            sau peste o casă.
+          </p>
+
+          <div class="pereche">
+            <div class="camp-admin">
+              <label for="camp-front">Deschidere (m)</label>
+              <input type="number" id="camp-front" value="18" min="8" max="60" step="0.5" />
+            </div>
+            <div class="camp-admin">
+              <label for="camp-adancime">Adâncime (m)</label>
+              <input type="number" id="camp-adancime" value="33" min="15" max="120" step="1" />
+            </div>
+          </div>
+          <div class="pereche">
+            <div class="camp-admin">
+              <label for="camp-drum">Drum între rânduri (m)</label>
+              <input type="number" id="camp-drum" value="8" min="0" max="30" step="0.5" />
+            </div>
+            <div class="camp-admin">
+              <label for="camp-retragere">Retragere hotar (m)</label>
+              <input type="number" id="camp-retragere" value="5" min="0" max="40" step="0.5" />
+            </div>
+          </div>
+          <div class="pereche">
+            <div class="camp-admin">
+              <label for="camp-transversal">Stradă transversală (m)</label>
+              <input type="number" id="camp-transversal" value="8" min="0" max="30" step="0.5" />
+            </div>
+            <div class="camp-admin">
+              <label for="camp-pas">La fiecare (m)</label>
+              <input type="number" id="camp-pas" value="130" min="0" max="600" step="10" />
+            </div>
+          </div>
+          <div class="camp-admin">
+            <label for="camp-marja">Distanță de gardă față de obstacole (m)</label>
+            <input type="number" id="camp-marja" value="3" min="0" max="30" step="0.5" />
+          </div>
+
+          <div class="camp-admin">
+            <div class="camp-admin__cap">
+              <label for="camp-azimut">Orientarea rândurilor</label>
+              <output class="cifre" id="valoare-azimut">90°</output>
+            </div>
+            <input type="range" id="camp-azimut" min="0" max="179" step="1" value="90" />
+            <button type="button" id="aliniaza" class="buton buton-secundar w-full">
+              Aliniază la latura cea mai lungă
+            </button>
+          </div>
+
+          <div class="pereche">
+            <div class="camp-admin">
+              <label for="camp-prefix">Prefix cod</label>
+              <input type="text" id="camp-prefix" value="M" maxlength="3" />
+            </div>
+            <div class="camp-admin">
+              <label for="camp-pret">Preț pornire (€/m²)</label>
+              <input type="number" id="camp-pret" value="60" min="1" step="1" />
+            </div>
+          </div>
+          <div class="camp-admin">
+            <label for="camp-proiect">Se adaugă la parcelarea</label>
+            <select id="camp-proiect"></select>
+          </div>
+
+          <button type="button" id="genereaza" class="buton buton-primar w-full" disabled>
+            Generează parcelarea
+          </button>
+        </details>
+      </div>
+
+      <footer class="panou-admin__subsol">
+        <p id="mesaj" class="mesaj">Click pe un lot ca să îl editezi.</p>
+        <p id="contor" class="contor cifre">—</p>
+        <p id="stare-depozit" class="stare-depozit">Nimic nepublicat</p>
+        <div class="actiuni">
+          <button type="button" id="publica" class="buton buton-primar" disabled>Publică pe hartă</button>
+          <button type="button" id="descarca" class="buton buton-secundar">Descarcă GeoJSON</button>
+          <button type="button" id="renunta" class="buton buton-secundar">Renunță la publicat</button>
+        </div>
+        <p class="ajutor">
+          La demo, publicarea se salvează în browserul ăsta, deci modificările se văd pe hartă pe
+          calculatorul tău. La proiectul real, același buton scrie în baza de date.
+        </p>
+      </footer>
+    </aside>
+  </div>
+</Baza>
+
+<script>
+  import '../scripts/admin.ts';
+</script>
+
+<style is:global>
+  .ecran-admin {
+    position: fixed;
+    inset: var(--header-h) 0 0 0;
+  }
+
+  #harta-admin.panza-admin {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+  }
+
+  .ecran-admin .incarcare {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-content: center;
+    background: var(--color-paper-2);
+    color: var(--color-ink-2);
+    font-size: 0.9375rem;
+    z-index: 5;
+  }
+
+  .panou-admin {
+    position: absolute;
+    z-index: 10;
+    background: var(--color-paper-3);
+    border: 1px solid var(--color-hairline);
+    box-shadow: var(--shadow-panou);
+    display: flex;
+    flex-direction: column;
+  }
+
+  @media (min-width: 768px) {
+    .panou-admin {
+      top: 16px;
+      right: 16px;
+      width: 25rem;
+      max-height: calc(100% - 32px);
+      border-radius: var(--radius-panou);
+    }
+  }
+
+  @media (max-width: 767px) {
+    .panou-admin {
+      inset: auto 0 0 0;
+      max-height: 62%;
+      border-radius: var(--radius-panou) var(--radius-panou) 0 0;
+      border-bottom: 0;
+    }
+  }
+
+  .panou-admin__continut {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 1.25rem;
+  }
+
+  .panou-admin__subsol {
+    flex: none;
+    border-top: 1px solid var(--color-hairline);
+    padding: 1rem 1.25rem 1.25rem;
+    background: var(--color-paper);
+  }
+
+  .panou-admin h1 {
+    font-size: 1.25rem;
+  }
+
+  .explicatie {
+    margin-top: 0.5rem;
+    font-size: 0.8125rem;
+    color: var(--color-ink-2);
+  }
+
+  .pasi {
+    margin-top: 1.25rem;
+    display: grid;
+    gap: 1.25rem;
+  }
+
+  .pasi > li {
+    display: grid;
+    grid-template-columns: 1.5rem 1fr;
+    gap: 0.75rem;
+    padding-top: 1.25rem;
+    border-top: 1px solid var(--color-hairline);
+  }
+
+  .pasi__nr {
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    color: var(--color-ink-3);
+    padding-top: 0.15rem;
+  }
+
+  .pasi__titlu {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    margin-bottom: 0.625rem;
+  }
+
+  .ajutor {
+    font-size: 0.75rem;
+    color: var(--color-ink-3);
+    margin-top: 0.625rem;
+  }
+
+  .unelte {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.375rem;
+  }
+
+  .unelte button {
+    padding: 0.45rem 0.5rem;
+    border: 1px solid var(--color-hairline);
+    border-radius: var(--radius-mic);
+    font-size: 0.8125rem;
+    transition: background-color 150ms ease-out;
+  }
+
+  .unelte button[aria-pressed='true'] {
+    background: var(--color-ink);
+    color: var(--color-paper-3);
+    border-color: var(--color-ink);
+  }
+
+  .panou-admin select,
+  .panou-admin input[type='text'],
+  .panou-admin input[type='number'] {
+    width: 100%;
+    padding: 0.45rem 0.55rem;
+    border: 1px solid var(--color-hairline);
+    border-radius: var(--radius-mic);
+    background: var(--color-paper-3);
+    font: inherit;
+    font-size: 0.875rem;
+    color: var(--color-ink);
+  }
+
+  .panou-admin input[type='range'] {
+    width: 100%;
+    accent-color: var(--color-accent);
+  }
+
+  .camp-admin + .camp-admin,
+  .pereche + .camp-admin,
+  .pereche + .pereche,
+  .camp-admin + .pereche,
+  .unelte + .camp-admin {
+    margin-top: 0.75rem;
+  }
+
+  .camp-admin label {
+    display: block;
+    font-size: 0.75rem;
+    color: var(--color-ink-2);
+    margin-bottom: 0.3rem;
+  }
+
+  .camp-admin__cap {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+  }
+
+  .camp-admin__cap label {
+    margin-bottom: 0;
+  }
+
+  .camp-admin__cap output {
+    font-family: var(--font-mono);
+    font-size: 0.8125rem;
+  }
+
+  .pereche {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.625rem;
+  }
+
+  .panou-admin .buton.w-full {
+    margin-top: 0.75rem;
+  }
+
+  .calculate {
+    margin-top: 0.875rem;
+    border-top: 1px solid var(--color-hairline);
+  }
+
+  .calculate > div {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.45rem 0;
+    border-bottom: 1px solid var(--color-hairline);
+    font-size: 0.8125rem;
+  }
+
+  .calculate dt {
+    color: var(--color-ink-2);
+  }
+
+  .calculate dd {
+    font-family: var(--font-mono);
+  }
+
+  .mesaj {
+    font-size: 0.8125rem;
+    color: var(--color-ink-2);
+    min-height: 2.4em;
+  }
+
+  .mesaj[data-tip='lucru'] {
+    color: var(--color-accent);
+  }
+
+  .mesaj[data-tip='eroare'] {
+    color: var(--color-vandut);
+  }
+
+  .panou-admin .contor {
+    margin-top: 0.25rem;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    font-family: var(--font-mono);
+  }
+
+  .panou-admin .actiuni {
+    margin-top: 0.75rem;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.5rem;
+  }
+
+  .panou-admin .actiuni .buton {
+    font-size: 0.8125rem;
+    padding-inline: 0.625rem;
+  }
+
+  .panou-admin .actiuni .buton:first-child {
+    grid-column: 1 / -1;
+  }
+
+  .panou-admin .buton:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+
+  .comutator-basemap {
+    position: absolute;
+    left: 16px;
+    top: 16px;
+    z-index: 10;
+    display: flex;
+    padding: 3px;
+    gap: 2px;
+  }
+
+  .comutator-basemap button {
+    padding: 6px 12px;
+    font-size: 0.8125rem;
+    border-radius: var(--radius-mic);
+    color: var(--color-ink-2);
+  }
+
+  .comutator-basemap button[aria-pressed='true'] {
+    background: var(--color-ink);
+    color: var(--color-paper-3);
+  }
+
+  .grup__cap {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.5rem;
+  }
+
+  .nr-selectie {
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    color: var(--color-accent);
+  }
+
+  .rand-butoane {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.5rem;
+    margin-top: 0.75rem;
+  }
+
+  .rand-butoane .buton {
+    font-size: 0.8125rem;
+    padding-inline: 0.5rem;
+  }
+
+  .panou-admin details.grup > summary {
+    cursor: pointer;
+    list-style: none;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .panou-admin details.grup > summary::after {
+    content: '+';
+    font-family: var(--font-mono);
+    color: var(--color-ink-3);
+  }
+
+  .panou-admin details.grup[open] > summary::after {
+    content: '–';
+  }
+
+  .panou-admin .unelte {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .stare-depozit {
+    margin-top: 0.25rem;
+    font-size: 0.75rem;
+    color: var(--color-ink-3);
+  }
+
+  .stare-depozit[data-activ='true'] {
+    color: var(--color-rezervat);
+    font-weight: 500;
+  }
+
+  .panou-admin .actiuni {
+    grid-template-columns: 1fr 1fr;
+  }
+</style>

@@ -1,0 +1,1262 @@
+---
+import { cale } from '../lib/cale';
+import Baza from '../layouts/Baza.astro';
+import proiecteJson from '../data/proiecte.json';
+import loturiJson from '../data/loturi.json';
+import { STATUSURI, ORDINE_STATUS, dataRo } from '../lib/loturi';
+import pinuriJson from '../data/pinuri.json';
+import { STARI_PIN, marcaDinNume, type Pin } from '../lib/pin';
+import type { Proiect, ProprietatiLot } from '../lib/loturi';
+import { areCheie } from '../lib/basemap';
+import { FIRMA } from '../lib/firma';
+
+const proiecte = proiecteJson as unknown as Proiect[];
+const proprietati = pinuriJson as unknown as Pin[];
+const loturi = loturiJson as unknown as { features: { properties: ProprietatiLot }[] };
+
+const total = loturi.features.length;
+const disponibile = loturi.features.filter((f) => f.properties.status === 'disponibil').length;
+const actualizat = proiecte[0].actualizat;
+const pretMinim = Math.min(
+  ...loturi.features.filter((f) => f.properties.status === 'disponibil').map((f) => f.properties.pret_total),
+);
+---
+
+<Baza
+  titlu={`${FIRMA.nume} · harta loturilor`}
+  descriere={`${disponibile} loturi disponibile în ${proiecte.length} parcelări din nordul Bucureștiului. Preț, suprafață și disponibilitate pe hartă.`}
+  ecranPlin
+>
+  <script type="application/json" id="date-proiecte" set:html={JSON.stringify(proiecte)} />
+
+  <div class="ecran-harta">
+    <div id="harta" class="panza"></div>
+
+    <p id="harta-incarcare" class="incarcare">Se încarcă harta parcelărilor…</p>
+    <div id="tooltip-lot" class="tooltip" hidden></div>
+
+    <!-- Sidebar pe desktop, sertar tras de jos pe mobil. -->
+    <aside id="sertar" class="sertar">
+      <button
+        type="button"
+        id="comuta-sertar"
+        class="sertar__maner"
+        aria-expanded="false"
+        aria-controls="sertar-continut"
+      >
+        <span>Loturi și filtre</span>
+        <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+          <path d="M4 10l4-4 4 4" stroke="currentColor" stroke-width="1.6" fill="none" />
+        </svg>
+      </button>
+
+      <div id="sertar-continut" class="sertar__continut">
+        <div class="sertar__derulabil">
+        <div class="sertar__antet">
+          <h1>Loturi de vânzare</h1>
+          <p class="sertar__cifre">
+            <span class="sertar__nr cifre" id="nr-gasite">{total}</span>
+            <span class="sertar__nr-eticheta" id="eticheta-gasite">loturi pe hartă</span>
+          </p>
+          <p class="sertar__sub">
+            <span id="sub-disponibile">{disponibile} disponibile</span>
+            <span class="sertar__sub-sep">·</span>
+            <span id="sub-pret">de la {new Intl.NumberFormat('ro-RO').format(pretMinim)} € + TVA</span>
+          </p>
+        </div>
+
+
+        <!-- Legenda și filtrul de status sunt același element: culoarea de pe hartă
+             se bifează direct, nu se explică într-un colț separat. -->
+        <fieldset class="camp">
+          <legend>Stare lot</legend>
+          <ul class="stari">
+            {
+              ORDINE_STATUS.map((s) => (
+                <li>
+                  <label for={`filtru-${s}`}>
+                    <input type="checkbox" id={`filtru-${s}`} checked />
+                    <span class="pastila" style={`--c: ${STATUSURI[s].culoare}; --b: ${STATUSURI[s].contur}`} />
+                    <span class="stari__text">{STATUSURI[s].scurt}</span>
+                    <span class="stari__nr cifre" id={`nr-${s}`}>0</span>
+                  </label>
+                </li>
+              ))
+            }
+          </ul>
+        </fieldset>
+
+        <div class="camp camp--portofoliu">
+          <div class="camp__cap">
+            <span class="eticheta-portofoliu">Portofoliu</span>
+            <span class="cifre camp__nr">{proiecte.length + proprietati.length}</span>
+          </div>
+
+          <ul class="portofoliu">
+            <li>
+              <button type="button" class="rand" data-portofoliu="toate" aria-pressed="true">
+                <span class="rand__marca rand__marca--toate" aria-hidden="true" />
+                <span class="rand__text">
+                  <span class="rand__nume">Toate</span>
+                  <span class="rand__sub">parcelări și terenuri</span>
+                </span>
+                <span class="rand__nr cifre">{proiecte.length + proprietati.length}</span>
+              </button>
+            </li>
+            {
+              proiecte.map((p) => (
+                <li>
+                  <button
+                    type="button"
+                    class="rand"
+                    data-portofoliu={p.slug}
+                    data-fel="parcelare"
+                    aria-pressed="false"
+                  >
+                    <span
+                      class="rand__marca"
+                      style={`--c: ${p.statistici.disponibile > 0 ? STARI_PIN.disponibil.culoare : STARI_PIN.vandut.culoare}`}
+                      aria-hidden="true"
+                    >
+                      {marcaDinNume(p.nume)}
+                    </span>
+                    <span class="rand__text">
+                      <span class="rand__nume">{p.nume}</span>
+                      <span class="rand__sub">{p.localitate} · parcelare</span>
+                    </span>
+                    <span class="rand__nr cifre">{p.statistici.disponibile}</span>
+                  </button>
+                </li>
+              ))
+            }
+            {
+              proprietati.map((t) => (
+                <li>
+                  <button
+                    type="button"
+                    class="rand"
+                    data-portofoliu={t.id}
+                    data-fel="teren"
+                    aria-pressed="false"
+                  >
+                    <span class="rand__marca" style={`--c: ${STARI_PIN[t.stare].culoare}`} aria-hidden="true">
+                      {t.marca}
+                    </span>
+                    <span class="rand__text">
+                      <span class="rand__nume">{t.nume}</span>
+                      <span class="rand__sub">{t.detaliu}</span>
+                    </span>
+                    <span class="rand__stare" style={`--c: ${STARI_PIN[t.stare].culoare}`}>
+                      {STARI_PIN[t.stare].eticheta}
+                    </span>
+                  </button>
+                </li>
+              ))
+            }
+          </ul>
+        </div>
+
+        <div class="camp">
+          <div class="camp__cap">
+            <label id="eticheta-sup">Suprafață</label>
+            <output class="cifre" id="sup-valoare" for="sup-min sup-max"></output>
+          </div>
+          <div class="interval" id="sup-bara">
+            <input type="range" id="sup-min" aria-labelledby="eticheta-sup" aria-label="Suprafață minimă" />
+            <input type="range" id="sup-max" aria-labelledby="eticheta-sup" aria-label="Suprafață maximă" />
+          </div>
+        </div>
+
+        <div class="camp">
+          <div class="camp__cap">
+            <label id="eticheta-pret">Preț total</label>
+            <output class="cifre" id="pret-valoare" for="pret-min pret-max"></output>
+          </div>
+          <div class="interval" id="pret-bara">
+            <input type="range" id="pret-min" aria-labelledby="eticheta-pret" aria-label="Preț minim" />
+            <input type="range" id="pret-max" aria-labelledby="eticheta-pret" aria-label="Preț maxim" />
+          </div>
+          <p class="camp__nota">Prețurile nu conțin TVA.</p>
+        </div>
+
+        <div class="camp camp--linie">
+          <label for="filtru-poi" class="comutator">
+            <input type="checkbox" id="filtru-poi" />
+            <span>Arată punctele de interes</span>
+          </label>
+        </div>
+
+        </div>
+
+        <div class="sertar__subsol">
+          <p class="camp__nota">Disponibilitate actualizată {dataRo(actualizat)}.</p>
+          <div class="sertar__actiuni">
+            <button type="button" id="reseteaza" class="buton buton-secundar">Resetează filtrele</button>
+            <a href={cale("/parcelari")} class="lista-alt">Lista completă</a>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <div class="comutator-basemap panou" role="group" aria-label="Fundal hartă">
+      <button type="button" data-basemap="satelit" aria-pressed="true">Satelit</button>
+      <button type="button" data-basemap="harta" aria-pressed="false">Hartă</button>
+    </div>
+
+    <p id="nota-publicat" class="nota-publicat panou" hidden></p>
+
+    <p class="nota-demo">
+      <strong>Demonstrație.</strong> Parcelare, prețuri și disponibilitate fictive. Limitele afișate
+      au caracter informativ și nu înlocuiesc măsurătoarea cadastrală.
+      {!areCheie && <span class="nota-demo__tehnic">Fundal satelit provizoriu, de înlocuit cu MapTiler.</span>}
+    </p>
+
+    <!-- Apare doar în vederea de la nivelul solului -->
+    <div id="bara-strada" class="bara-strada panou" hidden>
+      <span class="bara-strada__titlu">Vedere de la stradă</span>
+      <span class="bara-strada__lot cifre" id="bara-strada-lot"></span>
+      <span class="bara-strada__casa" id="bara-strada-casa"></span>
+      <span class="bara-strada__stare" id="bara-strada-stare"></span>
+      <button type="button" id="ramai-pe-harta" class="buton buton-secundar">Rămâi pe hartă</button>
+      <button type="button" id="iesi-strada" class="buton buton-secundar">Înapoi la parcelare</button>
+    </div>
+
+    <div id="card-lot" class="card-lot panou" hidden></div>
+  </div>
+</Baza>
+
+<script>
+  import '../scripts/harta.ts';
+</script>
+
+<style is:global>
+  /* ------------------------------------------------------------ scena hărții */
+  .ecran-harta {
+    position: fixed;
+    inset: var(--header-h) 0 0 0;
+  }
+
+  /* Vinieta: ține privirea în centrul cadrului și dă adâncime unei imagini
+     altfel perfect plate. Foarte discretă, altfel devine efect de filtru. */
+  .ecran-harta::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 4;
+    background: radial-gradient(125% 95% at 50% 42%, transparent 52%, rgb(21 24 26 / 0.16) 100%);
+  }
+
+  /* Grăuntele de hârtie, doar pe planșă. Zona e câmp arabil, unde
+     OpenStreetMap nu are aproape nicio suprafață desenată; fără textură,
+     fondul ar fi o coală goală și ar părea că harta nu s-a încărcat. */
+  .ecran-harta[data-fundal='harta']::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 4;
+    opacity: 0.45;
+    mix-blend-mode: multiply;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='g'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/><feColorMatrix type='saturate' values='0'/></filter><rect width='180' height='180' filter='url(%23g)' opacity='0.5'/></svg>");
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .ecran-harta::after,
+    .ecran-harta[data-fundal='harta']::before {
+      display: none;
+    }
+  }
+
+  /* maplibre-gl.css pune `position: relative` pe container si e injectat dupa
+     acest bloc, deci selectorul trebuie sa aiba specificitate de id. */
+  #harta.panza {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+  }
+
+  .incarcare {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-content: center;
+    background: var(--color-paper-2);
+    color: var(--color-ink-2);
+    font-size: 0.9375rem;
+    z-index: 5;
+  }
+
+  .maplibregl-ctrl-attrib {
+    font-size: 10px;
+  }
+
+  .maplibregl-ctrl-bottom-right {
+    bottom: 8px;
+    right: 4px;
+  }
+
+  /* Scara grafică. Stă în colțul din stânga jos, ca pe orice planșă, dar acolo
+     e sidebar-ul, deci o împingem lângă el. */
+  #harta .maplibregl-ctrl-bottom-left {
+    left: calc(var(--sidebar-w) + 32px);
+    bottom: 10px;
+  }
+
+  /* Controalele: MapLibre le livrează ca pătrate gri cu colț de 4px, adică
+     exact „hartă de programator”. Le aducem în limbajul panourilor. */
+  #harta .maplibregl-ctrl-group {
+    background: rgb(251 250 247 / 0.92);
+    border: 1px solid var(--color-hairline);
+    border-radius: var(--radius-panou);
+    box-shadow: var(--shadow-panou);
+    overflow: hidden;
+  }
+
+  #harta .maplibregl-ctrl-group button {
+    width: 32px;
+    height: 32px;
+  }
+
+  #harta .maplibregl-ctrl-group button + button {
+    border-top: 1px solid var(--color-hairline);
+  }
+
+  #harta .maplibregl-ctrl-group button:hover {
+    background: var(--color-paper-2);
+  }
+
+  #harta .maplibregl-ctrl-group button:focus-visible {
+    outline: 2px solid var(--color-ink);
+    outline-offset: -2px;
+    box-shadow: none;
+  }
+
+  #harta .maplibregl-ctrl-icon {
+    opacity: 0.72;
+  }
+
+  #harta .maplibregl-ctrl-group button:hover .maplibregl-ctrl-icon {
+    opacity: 1;
+  }
+
+  #harta .maplibregl-ctrl-attrib {
+    background: rgb(251 250 247 / 0.82);
+    border-radius: var(--radius-mic) 0 0 0;
+  }
+
+  .maplibregl-ctrl-scale {
+    background: rgb(251 250 247 / 0.86);
+    border: 1px solid var(--color-hairline);
+    border-top: 0;
+    border-radius: 0 0 var(--radius-mic) var(--radius-mic);
+    color: var(--color-ink-2);
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.02em;
+    padding: 1px 5px 2px;
+  }
+
+  @media (max-width: 767px) {
+    #harta .maplibregl-ctrl-bottom-left {
+      left: 8px;
+      bottom: 84px;
+    }
+  }
+
+  /* ------------------------------------------------------------------ sertar */
+  .sertar {
+    position: absolute;
+    z-index: 10;
+    background: var(--color-paper-3);
+    border: 1px solid var(--color-hairline);
+    box-shadow: var(--shadow-panou);
+  }
+
+  .sertar__maner {
+    display: flex;
+    width: 100%;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 14px 16px;
+    font-size: 0.9375rem;
+    font-weight: 500;
+  }
+
+  .sertar__maner svg {
+    transition: transform 180ms ease-out;
+  }
+
+  .sertar--deschis .sertar__maner svg {
+    transform: rotate(180deg);
+  }
+
+  /* Panoul are două etaje: un capitol care se derulează și un subsol care
+     rămâne pe loc. Înainte subsolul era în zona derulabilă, deci pe un laptop
+     scurt butonul de resetare și linkul spre listă pur și simplu nu existau
+     până nu dădeai scroll. */
+  .sertar__continut {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  .sertar__derulabil {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  @media (min-width: 768px) {
+    .sertar {
+      top: 16px;
+      left: 16px;
+      width: var(--sidebar-w);
+      max-height: calc(100% - 32px);
+      border-radius: var(--radius-panou);
+      display: flex;
+      flex-direction: column;
+    }
+    .sertar__maner {
+      display: none;
+    }
+    .sertar__continut {
+      flex: 1 1 auto;
+    }
+    .sertar__derulabil {
+      padding: 18px 18px 16px;
+    }
+  }
+
+  @media (max-width: 767px) {
+    .sertar {
+      inset: auto 0 0 0;
+      border-radius: var(--radius-panou) var(--radius-panou) 0 0;
+      border-bottom: 0;
+      max-height: 86%;
+      display: flex;
+      flex-direction: column;
+    }
+    .sertar__continut {
+      display: none;
+      flex: 1 1 auto;
+    }
+    .sertar--deschis .sertar__continut {
+      display: flex;
+    }
+    .sertar__derulabil {
+      padding: 4px 16px 16px;
+    }
+  }
+
+  /* Capul de panou. Titlul rămâne titlu semantic, dar eroul vizual e cifra
+     care se schimbă cu filtrele: aia e răspunsul la ce tocmai ai cerut, iar
+     înainte stătea în subsol, sub linia de plutire. */
+  .sertar__antet {
+    padding-bottom: 16px;
+  }
+
+  .sertar__antet h1 {
+    font-family: var(--font-sans);
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: var(--color-ink-2);
+  }
+
+  .sertar__cifre {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    margin-top: 6px;
+  }
+
+  .sertar__nr {
+    font-family: var(--font-mono);
+    font-size: 2.125rem;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.02em;
+  }
+
+  .sertar__nr-eticheta {
+    font-size: 0.875rem;
+    color: var(--color-ink-2);
+  }
+
+  .sertar__sub {
+    margin-top: 8px;
+    font-size: 0.8125rem;
+    color: var(--color-ink-2);
+  }
+
+  .sertar__sub-sep {
+    color: var(--color-ink-3);
+    margin: 0 2px;
+  }
+
+  .sertar__antet[data-gol='da'] .sertar__nr {
+    color: var(--color-ink-3);
+  }
+  /* ------------------------------------------------------------------ câmpuri */
+  .camp {
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 1px solid var(--color-hairline);
+  }
+
+  .camp:first-of-type {
+    border-top: 0;
+  }
+
+  .camp--linie {
+    padding-bottom: 4px;
+  }
+
+  .camp > label:not(.comutator),
+  .camp legend,
+  .camp__cap label {
+    display: block;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: var(--color-ink-2);
+    margin-bottom: 8px;
+  }
+
+  .camp__cap {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+
+  .camp__cap label {
+    margin-bottom: 0;
+  }
+
+  .camp__cap output {
+    font-size: 0.8125rem;
+    font-family: var(--font-mono);
+  }
+
+  .camp__nota {
+    margin-top: 8px;
+    font-size: 0.75rem;
+    color: var(--color-ink-3);
+  }
+
+  /* ------------------------------------------------------------- portofoliu */
+  .eticheta-portofoliu {
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: var(--color-ink-2);
+  }
+
+  .camp__nr {
+    font-family: var(--font-mono);
+    font-size: 0.8125rem;
+    color: var(--color-ink-3);
+  }
+
+  .camp--portofoliu .camp__cap {
+    margin-bottom: 4px;
+  }
+
+  /* Lista are derularea ei: cu 23 de rânduri, dacă ar curge în panou,
+     filtrele de suprafață și preț ar ajunge la 1.300 de pixeli mai jos și nu
+     le-ar mai găsi nimeni. */
+  .portofoliu {
+    margin: 0 -18px;
+    max-height: min(44vh, 430px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    border-block: 1px solid var(--color-hairline);
+  }
+
+  @media (min-width: 768px) and (max-height: 760px) {
+    .portofoliu {
+      max-height: 38vh;
+    }
+  }
+
+  .rand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 7px 18px;
+    text-align: left;
+    border-left: 2px solid transparent;
+    transition: background 120ms ease-out;
+  }
+
+  .rand:hover,
+  .rand:focus-visible {
+    background: var(--color-paper-2);
+    outline: none;
+  }
+
+  .rand:focus-visible {
+    border-left-color: var(--color-ink);
+  }
+
+  .rand[aria-pressed='true'] {
+    background: var(--color-paper-2);
+    border-left-color: var(--color-ink);
+  }
+
+  /* Terenul deschis ultima dată: se însemnează, dar nu arată ca un filtru
+     apăsat, pentru că nu filtrează nimic. */
+  .rand[data-deschis] {
+    border-left-color: var(--color-ink-3);
+  }
+
+  .rand[data-deschis] .rand__nume {
+    font-weight: 500;
+  }
+
+  /* Discul din listă e același semn ca pe hartă, la scară mică: te uiți în
+     panou și știi ce cauți pe hartă, fără legendă în plus. */
+  .rand__marca {
+    display: grid;
+    place-items: center;
+    flex: none;
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    border: 1.5px solid var(--c, var(--color-hairline));
+    background: var(--color-paper-3);
+    font-family: var(--font-mono);
+    font-size: 0.625rem;
+    color: var(--color-ink);
+  }
+
+  .rand__marca--toate {
+    border-style: dashed;
+    color: var(--color-ink-3);
+  }
+
+  .rand__text {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .rand__nume {
+    display: block;
+    font-size: 0.875rem;
+    line-height: 1.3;
+  }
+
+  .rand__sub {
+    display: block;
+    font-size: 0.6875rem;
+    color: var(--color-ink-3);
+    line-height: 1.35;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .rand__nr {
+    flex: none;
+    font-family: var(--font-mono);
+    font-size: 0.8125rem;
+    color: var(--color-ink-2);
+  }
+
+  .rand__stare {
+    flex: none;
+    font-family: var(--font-mono);
+    font-size: 9.5px;
+    padding: 2px 5px 3px;
+    border-radius: var(--radius-mic);
+    background: var(--c);
+    color: #fff;
+  }
+
+  @media (max-width: 767px) {
+    .portofoliu {
+      margin: 0 -16px;
+      max-height: 42vh;
+    }
+
+    .rand {
+      padding: 8px 16px;
+    }
+  }
+
+  .camp select {
+    width: 100%;
+    padding: 9px 12px;
+    border: 1px solid var(--color-hairline);
+    border-radius: var(--radius-mic);
+    background: var(--color-paper-3);
+    font: inherit;
+    font-size: 0.9375rem;
+  }
+
+  /* ------------------------------------------------------------ legendă-filtru */
+  .stari {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .stari label {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 7px 0;
+    cursor: pointer;
+    font-size: 0.9375rem;
+  }
+
+  .stari input {
+    accent-color: var(--color-accent);
+    width: 15px;
+    height: 15px;
+  }
+
+  .pastila {
+    width: 16px;
+    height: 16px;
+    border-radius: 3px;
+    background: color-mix(in srgb, var(--c) 72%, white);
+    border: 1.5px solid var(--b);
+    flex: none;
+  }
+
+  .stari__text {
+    flex: 1;
+  }
+
+  .stari__nr {
+    font-family: var(--font-mono);
+    font-size: 0.8125rem;
+    color: var(--color-ink-3);
+  }
+
+  .stari input:not(:checked) ~ .stari__text,
+  .stari input:not(:checked) ~ .stari__nr {
+    color: var(--color-ink-3);
+    text-decoration: line-through;
+    text-decoration-color: var(--color-hairline);
+  }
+
+  .comutator {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 0.9375rem;
+    cursor: pointer;
+  }
+
+  .comutator input {
+    accent-color: var(--color-accent);
+    width: 15px;
+    height: 15px;
+    flex: none;
+    margin: 0;
+  }
+
+  .stari input {
+    flex: none;
+    margin: 0;
+  }
+
+  /* ------------------------------------------------- interval cu două capete */
+  .interval {
+    position: relative;
+    height: 26px;
+    --start: 0%;
+    --end: 100%;
+  }
+
+  .interval::before,
+  .interval::after {
+    content: '';
+    position: absolute;
+    top: 11px;
+    height: 4px;
+    border-radius: 2px;
+  }
+
+  .interval::before {
+    left: 0;
+    right: 0;
+    background: var(--color-paper-2);
+    border: 1px solid var(--color-hairline);
+    box-sizing: border-box;
+  }
+
+  .interval::after {
+    left: var(--start);
+    right: calc(100% - var(--end));
+    background: var(--color-accent);
+  }
+
+  .interval input[type='range'] {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    margin: 0;
+    background: none;
+    pointer-events: none;
+    appearance: none;
+    -webkit-appearance: none;
+  }
+
+  .interval input[type='range']::-webkit-slider-thumb {
+    pointer-events: auto;
+    appearance: none;
+    -webkit-appearance: none;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--color-paper-3);
+    border: 1.5px solid var(--color-ink);
+    cursor: grab;
+  }
+
+  .interval input[type='range']::-moz-range-thumb {
+    pointer-events: auto;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--color-paper-3);
+    border: 1.5px solid var(--color-ink);
+    cursor: grab;
+  }
+
+  .interval input[type='range']::-moz-range-track {
+    background: none;
+  }
+
+  /* ------------------------------------------------------------ subsol sertar */
+  .sertar__subsol {
+    margin-top: 20px;
+    padding-top: 16px;
+    border-top: 1px solid var(--color-hairline);
+  }
+
+  .sertar__subsol {
+    flex: none;
+    border-top: 1px solid var(--color-hairline);
+    background: var(--color-paper-3);
+    padding: 12px 18px 14px;
+    border-radius: 0 0 var(--radius-panou) var(--radius-panou);
+  }
+
+  .sertar__actiuni {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-top: 10px;
+  }
+
+  .sertar__actiuni .buton {
+    flex: 1 1 auto;
+  }
+
+  @media (max-width: 767px) {
+    .sertar__subsol {
+      padding: 12px 16px calc(14px + env(safe-area-inset-bottom));
+      border-radius: 0;
+    }
+  }
+
+  .sertar__subsol .buton {
+    margin-top: 12px;
+    width: 100%;
+  }
+
+  .lista-alt {
+    flex: none;
+    font-size: 0.8125rem;
+    color: var(--color-ink-2);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    white-space: nowrap;
+  }
+
+  /* --------------------------------------------------------------- controale */
+  .comutator-basemap {
+    position: absolute;
+    right: 16px;
+    top: 16px;
+    z-index: 10;
+    display: flex;
+    padding: 3px;
+    gap: 2px;
+  }
+
+  .comutator-basemap button {
+    padding: 6px 12px;
+    font-size: 0.8125rem;
+    border-radius: var(--radius-mic);
+    color: var(--color-ink-2);
+    transition: background-color 150ms ease-out;
+  }
+
+  .comutator-basemap button[aria-pressed='true'] {
+    background: var(--color-ink);
+    color: var(--color-paper-3);
+  }
+
+  .tooltip {
+    position: absolute;
+    top: 0;
+    left: 0;
+    z-index: 12;
+    pointer-events: none;
+    background: var(--color-ink);
+    color: var(--color-paper-3);
+    padding: 5px 9px;
+    border-radius: var(--radius-mic);
+    font-size: 0.75rem;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .tooltip span {
+    display: block;
+    opacity: 0.7;
+  }
+
+  /* Nota stă în dreapta sidebarului, nu sub el: la înălțimi mici sidebarul
+     ajunge până jos și s-ar suprapune. */
+  /* Semn discret că harta arată și modificările publicate din panou. */
+  .nota-publicat {
+    position: absolute;
+    top: 16px;
+    left: calc(var(--sidebar-w) + 32px);
+    z-index: 9;
+    padding: 0.4rem 0.7rem;
+    font-size: 0.75rem;
+    color: var(--color-accent);
+  }
+
+  @media (max-width: 767px) {
+    .nota-publicat {
+      display: none;
+    }
+  }
+
+  .nota-demo {
+    position: absolute;
+    left: calc(var(--sidebar-w) + 32px);
+    /* lasă loc controalelor de zoom din dreapta și barei de atribuire de jos */
+    right: 76px;
+    bottom: 28px;
+    z-index: 9;
+    max-width: 42rem;
+    font-size: 0.6563rem;
+    line-height: 1.45;
+    /* Pastilă întunecată, ca să rămână lizibilă și peste satelit, și peste
+       fundalul deschis de străzi. */
+    color: #fff;
+    background: rgb(21 24 26 / 0.45);
+    backdrop-filter: blur(6px);
+    padding: 0.3rem 0.55rem;
+    border-radius: var(--radius-mic);
+    width: fit-content;
+    margin-left: auto;
+    margin-right: 0;
+  }
+
+  .nota-demo__tehnic {
+    opacity: 0.75;
+  }
+
+  /* Pe planșă nu e niciun fundal satelit de înlocuit, deci nota tehnică ar
+     spune o neadevărată. */
+  .ecran-harta[data-fundal='harta'] .nota-demo__tehnic {
+    display: none;
+  }
+
+  .nota-demo__tehnic::before {
+    content: ' · ';
+  }
+
+  @media (max-width: 767px) {
+    .nota-demo {
+      display: none;
+    }
+    .comutator-basemap {
+      top: 12px;
+      right: 12px;
+    }
+  }
+
+  /* -------------------------------------------------------------- fișa lotului */
+  .maplibregl-popup-content {
+    padding: 0;
+    border-radius: var(--radius-panou);
+    box-shadow: var(--shadow-ridicat);
+    background: var(--color-paper-3);
+    font-family: var(--font-sans);
+  }
+
+  .maplibregl-popup-close-button {
+    font-size: 20px;
+    color: var(--color-ink-2);
+    padding: 2px 8px;
+  }
+
+  .card-lot {
+    position: absolute;
+    /* pe mobil stă deasupra mânerului sertarului, nu peste el */
+    inset: auto 12px 64px 12px;
+    z-index: 20;
+    max-height: 66%;
+    overflow-y: auto;
+  }
+
+  /* În vederea de la stradă fișa e panou fix lângă sidebar: un popup ancorat
+     la înclinare de 76 de grade fuge din ecran. */
+  @media (min-width: 768px) {
+    .mod-strada .card-lot {
+      inset: auto auto 16px calc(var(--sidebar-w) + 32px);
+      width: 22rem;
+      max-height: 60%;
+    }
+    /* nota se dă la o parte, ca să nu treacă pe sub fișa lotului */
+    .mod-strada .nota-demo {
+      left: calc(var(--sidebar-w) + 32px + 23rem);
+    }
+  }
+
+  .bara-strada {
+    position: absolute;
+    top: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 21;
+    display: flex;
+    align-items: center;
+    gap: 0.875rem;
+    padding: 0.5rem 0.5rem 0.5rem 1rem;
+    white-space: nowrap;
+  }
+
+  .bara-strada__titlu {
+    font-size: 0.875rem;
+    font-weight: 500;
+  }
+
+  .bara-strada__lot {
+    font-family: var(--font-mono);
+    font-size: 0.8125rem;
+    color: var(--color-ink-2);
+  }
+
+  .bara-strada__casa {
+    font-size: 0.8125rem;
+    color: var(--color-ink-2);
+  }
+
+  .bara-strada__casa:empty {
+    display: none;
+  }
+
+  .bara-strada__stare {
+    font-size: 0.8125rem;
+    color: var(--color-accent);
+  }
+
+  .bara-strada__stare:empty {
+    display: none;
+  }
+
+  /* Butonul de anulare apare doar cât timp pagina e programată să se deschidă. */
+  #ramai-pe-harta {
+    display: none;
+  }
+
+  .bara-strada--pleaca #ramai-pe-harta {
+    display: inline-flex;
+  }
+
+  .bara-strada .buton {
+    padding: 0.4rem 0.75rem;
+    font-size: 0.8125rem;
+  }
+
+  @media (max-width: 767px) {
+    .bara-strada {
+      left: 12px;
+      right: 12px;
+      transform: none;
+      top: 12px;
+      justify-content: space-between;
+      gap: 0.5rem;
+    }
+    .bara-strada__lot {
+      display: none;
+    }
+    .mod-strada .comutator-basemap {
+      display: none;
+    }
+  }
+
+  .card-lot__inchide {
+    position: absolute;
+    top: 8px;
+    right: 10px;
+    font-size: 22px;
+    line-height: 1;
+    color: var(--color-ink-2);
+    padding: 4px 8px;
+  }
+
+  .fisa-lot {
+    padding: 18px;
+  }
+
+  .fisa-lot__cap {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    padding-right: 18px;
+  }
+
+  .fisa-lot__cod {
+    font-family: var(--font-serif);
+    font-size: 1.25rem;
+    line-height: 1.1;
+  }
+
+  .fisa-lot__proiect {
+    font-size: 0.8125rem;
+    color: var(--color-ink-2);
+    margin-top: 2px;
+  }
+
+  .fisa-lot__status {
+    flex: none;
+    font-size: 0.6875rem;
+    font-weight: 500;
+    padding: 3px 8px;
+    border-radius: var(--radius-mic);
+    color: var(--c);
+    background: color-mix(in srgb, var(--c) 12%, transparent);
+    border: 1px solid color-mix(in srgb, var(--c) 34%, transparent);
+    white-space: nowrap;
+  }
+
+  .fisa-lot__date {
+    margin-top: 14px;
+    border-top: 1px solid var(--color-hairline);
+  }
+
+  .fisa-lot__date > div {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 7px 0;
+    border-bottom: 1px solid var(--color-hairline);
+    font-size: 0.875rem;
+  }
+
+  .fisa-lot__date dt {
+    color: var(--color-ink-2);
+  }
+
+  .fisa-lot__date dd {
+    font-family: var(--font-mono);
+  }
+
+  .fisa-lot__nota {
+    margin-top: 10px;
+    font-size: 0.8125rem;
+    color: var(--color-ink-2);
+  }
+
+  .fisa-lot__tva {
+    margin-top: 8px;
+    font-size: 0.6875rem;
+    color: var(--color-ink-3);
+  }
+
+  .fisa-lot__actiuni {
+    margin-top: 14px;
+    display: grid;
+    gap: 8px;
+  }
+
+  .fisa-lot__secundare {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+
+  .fisa-lot__actiuni .buton {
+    width: 100%;
+    font-size: 0.8125rem;
+    padding-inline: 0.75rem;
+  }
+
+  .fisa-lot__actiuni > .buton {
+    font-size: 0.875rem;
+  }
+
+  /* Laptop scurt: subsolul e fixat, deci tot ce crește în cap se scade din
+     zona de filtre. Pe sub 760px înălțime capul se strânge, ca lista de stări
+     să încapă întreagă fără scroll. */
+  @media (min-width: 768px) and (max-height: 760px) {
+    .sertar__derulabil {
+      padding: 14px 18px 12px;
+    }
+    .sertar__antet {
+      padding-bottom: 12px;
+    }
+    .sertar__nr {
+      font-size: 1.625rem;
+    }
+    .sertar__cifre {
+      margin-top: 4px;
+    }
+    .sertar__sub {
+      margin-top: 6px;
+    }
+    .camp {
+      margin-top: 12px;
+      padding-top: 12px;
+    }
+    /* Cele patru stări pe două coloane: economisește ~76px, adică exact
+       diferența dintre „vezi toate stările” și „mai dă un scroll”. */
+    .stari {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      column-gap: 14px;
+    }
+    .stari label {
+      padding: 5px 0;
+      font-size: 0.875rem;
+      gap: 8px;
+    }
+    .sertar__subsol {
+      padding: 10px 18px 12px;
+    }
+  }
+
+  /* Și pe telefon legenda stă pe două coloane: sunt vreo 76 de pixeli pe care
+     îi ia portofoliul, adică încă două rânduri din listă. Regula stă la finalul
+     foii pentru că `.stari` e definit mai sus și, la specificitate egală, ar
+     câștiga el. */
+  @media (max-width: 767px) {
+    .stari {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      column-gap: 12px;
+    }
+    .stari label {
+      font-size: 0.875rem;
+      gap: 8px;
+    }
+  }
+
+</style>

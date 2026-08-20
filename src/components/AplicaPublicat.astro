@@ -1,0 +1,71 @@
+---
+/**
+ * Paginile de lot și tabelele de parcelare sunt generate la build, deci nu știu
+ * de modificările publicate din panou. Scriptul ăsta le suprapune în browser:
+ * caută elementele marcate cu `data-lot` și le actualizează starea și prețul.
+ *
+ * La proiectul real, unde datele vin din baza de date la build sau la request,
+ * componenta asta dispare.
+ */
+---
+
+<script>
+  import { citeste } from '../lib/depozit';
+  import { STATUSURI } from '../lib/loturi';
+
+  const d = citeste();
+  const nrModificari =
+    Object.keys(d.modificari).length + d.adaugate.length + d.sterse.length;
+
+  if (nrModificari > 0) {
+    const nfEur = new Intl.NumberFormat('ro-RO', { maximumFractionDigits: 0 });
+    const euro = (n: number) => `${nfEur.format(n)} €`;
+
+    for (const nod of document.querySelectorAll<HTMLElement>('[data-lot]')) {
+      const id = nod.dataset.lot!;
+      const sters = d.sterse.includes(id);
+      const m = d.modificari[id];
+      if (!sters && !m) continue;
+
+      if (sters) {
+        nod.dataset.sters = 'da';
+        for (const t of nod.querySelectorAll<HTMLElement>('[data-camp="status"]')) {
+          t.textContent = 'Retras din ofertă';
+          t.style.setProperty('--c', '#8a9095');
+        }
+        continue;
+      }
+
+      if (m.status) {
+        const cfg = STATUSURI[m.status];
+        for (const t of nod.querySelectorAll<HTMLElement>('[data-camp="status"]')) {
+          t.textContent = cfg.eticheta;
+          t.style.setProperty('--c', cfg.culoare);
+        }
+      }
+      if (m.cod) {
+        for (const t of nod.querySelectorAll<HTMLElement>('[data-camp="cod"]')) {
+          t.textContent = m.cod;
+        }
+      }
+      if (m.pret_mp !== undefined) {
+        const suprafata = Number(nod.dataset.suprafata ?? 0);
+        for (const t of nod.querySelectorAll<HTMLElement>('[data-camp="pret_mp"]')) {
+          t.textContent = `${euro(m.pret_mp)}/m²`;
+        }
+        for (const t of nod.querySelectorAll<HTMLElement>('[data-camp="pret_total"]')) {
+          t.textContent = euro(Math.round(suprafata * m.pret_mp));
+        }
+      }
+      nod.dataset.modificat = 'da';
+    }
+
+    const semn = document.getElementById('semn-publicat');
+    if (semn) {
+      semn.textContent = `Afișează ${nrModificari} ${
+        nrModificari === 1 ? 'modificare publicată' : 'modificări publicate'
+      } din panou.`;
+      semn.hidden = false;
+    }
+  }
+</script>

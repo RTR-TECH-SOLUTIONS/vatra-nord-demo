@@ -1,0 +1,400 @@
+@import 'tailwindcss';
+
+/*
+  Tokenii proiectului. Limbajul vizual pornește de la planul de situație și
+  extrasul de carte funciară: hârtie caldă, tuș aproape negru, hairline de 1px,
+  cifre monospațiate. Un singur accent.
+*/
+@theme {
+  --color-paper: #f4f1ea;
+  --color-paper-2: #eae5da;
+  --color-paper-3: #fbfaf7;
+  --color-hairline: #d8d2c4;
+  --color-ink: #15181a;
+  --color-ink-2: #565d62;
+  --color-ink-3: #8a9095;
+  --color-accent: #2f5d46;
+  --color-accent-alt: #244a38;
+
+  /* Cod de semnalizare pentru statusul lotului. Separat de paleta de brand. */
+  --color-disponibil: #2f8f57;
+  --color-rezervat: #c08a2a;
+  --color-vandut: #b4483a;
+  --color-pregatire: #3e6b7a;
+
+  --font-serif: 'Newsreader', 'Source Serif 4', Georgia, 'Times New Roman', serif;
+  --font-sans: 'IBM Plex Sans', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+
+  --radius-panou: 8px;
+  --radius-mic: 4px;
+
+  --shadow-panou: 0 1px 2px rgb(0 0 0 / 0.08), 0 8px 24px rgb(0 0 0 / 0.1);
+  --shadow-ridicat: 0 2px 4px rgb(0 0 0 / 0.1), 0 16px 40px rgb(0 0 0 / 0.16);
+}
+
+:root {
+  --header-h: 60px;
+  --sidebar-w: 340px;
+}
+
+@media (min-width: 1280px) {
+  :root {
+    --header-h: 68px;
+    --sidebar-w: 372px;
+  }
+}
+
+/* Trecere lină între pagini. E API nativ de browser, nu are nevoie de
+   framework, iar unde nu e suportat pur și simplu nu se întâmplă nimic. */
+@view-transition {
+  navigation: auto;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  @view-transition {
+    navigation: none;
+  }
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+    scroll-behavior: smooth;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+
+  body {
+    background: var(--color-paper);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    font-size: 16px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-serif);
+    font-weight: 400;
+    line-height: 1.15;
+    letter-spacing: -0.01em;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+    border-radius: 2px;
+  }
+
+  ::selection {
+    background: color-mix(in oklab, var(--color-accent) 22%, transparent);
+  }
+
+  /* Cifrele se aliniază în coloană peste tot unde contează comparația. */
+  table,
+  .cifre {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+@layer components {
+  .panou {
+    background: var(--color-paper-3);
+    border: 1px solid var(--color-hairline);
+    border-radius: var(--radius-panou);
+    box-shadow: var(--shadow-panou);
+  }
+
+  .buton {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.625rem 1.125rem;
+    border-radius: var(--radius-panou);
+    font-weight: 500;
+    font-size: 0.9375rem;
+    line-height: 1.2;
+    transition: background-color 180ms ease-out, color 180ms ease-out, border-color 180ms ease-out;
+  }
+
+  .buton-primar {
+    background: var(--color-ink);
+    color: var(--color-paper-3);
+  }
+
+  .buton-primar:hover {
+    background: #000;
+  }
+
+  .buton-secundar {
+    background: transparent;
+    color: var(--color-ink);
+    border: 1px solid var(--color-hairline);
+  }
+
+  .buton-secundar:hover {
+    border-color: var(--color-ink-3);
+    background: var(--color-paper-2);
+  }
+
+  .eticheta {
+    font-family: var(--font-mono);
+    font-size: 0.6875rem;
+    letter-spacing: 0.02em;
+    color: var(--color-ink-2);
+  }
+
+  /* Fișa de specificații: două coloane despărțite de hairline, ca într-un deviz. */
+  .fisa {
+    border-top: 1px solid var(--color-hairline);
+  }
+
+  .fisa > div {
+    display: grid;
+    grid-template-columns: minmax(9rem, 15rem) 1fr;
+    gap: 0.5rem 1.5rem;
+    padding: 0.875rem 0;
+    border-bottom: 1px solid var(--color-hairline);
+    align-items: baseline;
+  }
+
+  @media (max-width: 40rem) {
+    .fisa > div {
+      grid-template-columns: 1fr;
+      gap: 0.125rem;
+    }
+  }
+}
+
+/* ------------------------------------------------------------------- pinuri */
+/*
+  Marcajul unei proprietăți pe hartă: disc cu marca, panglică de stare sub el,
+  ac care arată locul, numele dedesubt. E același element pe harta publică și
+  în panoul de administrare, ca ce pui să fie exact ce se vede.
+
+  Referința de piață (comunaberceni.ro) folosește discuri saturate cu panglici
+  verzi fluorescente care se suprapun până devin ilizibile. Aici discul rămâne
+  hârtie cu tuș, iar culoarea intră doar pe muchie și pe panglică — un singur
+  accent, ca peste tot pe site.
+*/
+@layer components {
+  .pin {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 0;
+    border: 0;
+    background: none;
+    font: inherit;
+    line-height: 1;
+    cursor: pointer;
+    transform-origin: bottom center;
+    transition:
+      transform 160ms ease-out,
+      opacity 160ms ease-out;
+  }
+
+  .pin__disc {
+    display: grid;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: var(--color-paper-3);
+    border: 2px solid var(--stare, var(--color-ink));
+    box-shadow:
+      0 0 0 3px rgb(251 250 247 / 0.5),
+      0 1px 2px rgb(0 0 0 / 0.18),
+      0 6px 16px rgb(0 0 0 / 0.2);
+    font-family: var(--font-mono);
+    font-size: 0.8125rem;
+    font-weight: 500;
+    letter-spacing: 0.02em;
+    color: var(--color-ink);
+  }
+
+  .pin__stare {
+    margin-top: -7px;
+    padding: 2px 6px 3px;
+    border-radius: var(--radius-mic);
+    background: var(--stare, var(--color-ink));
+    color: var(--pe-stare, #fff);
+    font-family: var(--font-mono);
+    font-size: 9.5px;
+    white-space: nowrap;
+    box-shadow: 0 1px 2px rgb(0 0 0 / 0.22);
+  }
+
+  .pin__ac {
+    width: 1.5px;
+    height: 13px;
+    margin-top: 2px;
+    background: var(--color-ink);
+    opacity: 0.5;
+  }
+
+  /* Numele iese din flux, ca acul să rămână exact pe coordonată. */
+  .pin__nume {
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    margin-top: 4px;
+    max-width: 140px;
+    padding: 2px 6px 3px;
+    border-radius: var(--radius-mic);
+    background: rgb(251 250 247 / 0.92);
+    border: 1px solid var(--color-hairline);
+    font-size: 11px;
+    line-height: 1.25;
+    text-align: center;
+    color: var(--color-ink);
+    /* Peste satelit un text cu umbră de hârtie rămâne o pată; peste planșă
+       s-ar topi în fond. O pastilă de hârtie se citește pe amândouă. */
+    box-shadow: 0 1px 2px rgb(0 0 0 / 0.16);
+  }
+
+  .pin--fara-nume .pin__nume {
+    display: none;
+  }
+
+  /* O parcelare cu sute de loturi nu are aceeași greutate ca un teren de 700
+     de metri. Se vede din mărimea discului, nu dintr-o iconiță în plus. */
+  .pin--parcelare .pin__disc {
+    width: 54px;
+    height: 54px;
+    font-size: 0.9375rem;
+    border-width: 2.5px;
+  }
+
+  .pin--parcelare .pin__stare {
+    font-size: 10px;
+    padding: 2px 7px 3px;
+  }
+
+  .pin--parcelare.pin--mic .pin__disc {
+    width: 38px;
+    height: 38px;
+    font-size: 0.8125rem;
+    border-width: 2px;
+  }
+
+  /* Ultima treaptă când doi vecini nu încap: disc mic, fără panglică. Rămâne
+     pe hartă și rămâne apăsabil — se citește la zoom. */
+  .pin--mic .pin__stare {
+    display: none;
+  }
+
+  .pin--mic .pin__disc {
+    width: 30px;
+    height: 30px;
+    font-size: 0.6875rem;
+    border-width: 1.5px;
+  }
+
+  .pin--mic .pin__ac {
+    height: 9px;
+    margin-top: 3px;
+  }
+
+  .pin:hover,
+  .pin:focus-visible,
+  .pin--evidentiat {
+    transform: scale(1.12);
+    outline: none;
+    z-index: 500;
+  }
+
+  /* Semnul chemat din listă: iese în față, inclusiv peste vecinii care l-au
+     împins la forma mică. */
+  .pin--evidentiat .pin__disc {
+    box-shadow:
+      0 0 0 4px rgb(251 250 247 / 0.9),
+      0 2px 6px rgb(0 0 0 / 0.24),
+      0 10px 24px rgb(0 0 0 / 0.28);
+  }
+
+  .pin:focus-visible .pin__disc {
+    outline: 2px solid var(--color-ink);
+    outline-offset: 2px;
+  }
+
+  .pin--ascuns {
+    opacity: 0;
+    pointer-events: none;
+    transform: scale(0.9);
+  }
+
+  /* Pinul aflat în editare, în panou. */
+  .pin--activ .pin__disc {
+    background: var(--color-ink);
+    color: var(--color-paper-3);
+  }
+
+  @media (max-width: 767px) {
+    .pin__disc {
+      width: 38px;
+      height: 38px;
+      font-size: 0.75rem;
+    }
+    .pin__nume {
+      max-width: 108px;
+      font-size: 10px;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .pin {
+      transition: none;
+    }
+  }
+
+  /* Fișa care se deschide dintr-un pin de proprietate. Deliberat scurtă: un
+     pin nu e un lot, nu are cod, deschidere și preț pe metru pătrat. */
+  .fisa-pin {
+    padding: 14px 16px 16px;
+  }
+
+  .fisa-pin__stare {
+    display: inline-block;
+    padding: 2px 7px 3px;
+    border-radius: var(--radius-mic);
+    background: var(--c);
+    color: #fff;
+    font-family: var(--font-mono);
+    font-size: 10px;
+  }
+
+  .fisa-pin__nume {
+    margin-top: 8px;
+    font-family: var(--font-serif);
+    font-size: 1.125rem;
+    line-height: 1.25;
+  }
+
+  .fisa-pin__detaliu {
+    margin-top: 4px;
+    font-size: 0.8125rem;
+    color: var(--color-ink-2);
+  }
+
+  .fisa-pin .buton {
+    margin-top: 12px;
+  }
+}
