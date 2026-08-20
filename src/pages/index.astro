@@ -359,9 +359,16 @@ const pretMinim = Math.min(
   }
 
   @media (max-width: 767px) {
+    /* Pe telefon atribuirea se rupe pe două rânduri și urcă până la 116px de
+       jos, deci scara trece deasupra ei. */
     #harta .maplibregl-ctrl-bottom-left {
       left: 8px;
-      bottom: 84px;
+      bottom: 122px;
+    }
+    /* Sertarul strâns ocupă vreo 52px jos, iar atribuirea rămânea sub el.
+       Nu e o scăpare de aliniere: creditul OpenStreetMap trebuie să se vadă. */
+    #harta .maplibregl-ctrl-bottom-right {
+      bottom: 62px;
     }
   }
 
@@ -949,7 +956,11 @@ const pretMinim = Math.min(
     left: calc(var(--sidebar-w) + 32px);
     /* lasă loc controalelor de zoom din dreapta și barei de atribuire de jos */
     right: 76px;
-    bottom: 28px;
+    /* Bara de atribuire e înaltă de 24px și stă la 8px de jos, deci nota
+       trebuie să înceapă de peste 42px. Nu e cochetărie de aliniere:
+       atribuirea OpenStreetMap e obligație de licență, nu are voie să fie
+       acoperită. */
+    bottom: 46px;
     z-index: 9;
     max-width: 42rem;
     font-size: 0.6563rem;
