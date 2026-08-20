@@ -1,0 +1,262 @@
+---
+import Baza from '../layouts/Baza.astro';
+import proiecteJson from '../data/proiecte.json';
+import type { Proiect } from '../lib/loturi';
+import { FIRMA } from '../lib/firma';
+
+const proiecte = proiecteJson as unknown as Proiect[];
+---
+
+<Baza
+  titlu={`Contact · ${FIRMA.nume}`}
+  descriere={`Programează o vizionare. ${FIRMA.persoana}, ${FIRMA.rol}. ${FIRMA.telefon}.`}
+>
+  <div class="continut">
+    <div class="coloane">
+      <div>
+        <h1>Programează o vizionare</h1>
+        <p class="intro">
+          Vizionările se fac doar cu programare. Venim pe teren cu planul de parcelare și îți arătăm
+          bornele lotului care te interesează, ca să vezi exact ce cumperi.
+        </p>
+
+        <div class="fisa">
+          <div>
+            <dt class="fisa__cheie">Telefon</dt>
+            <dd class="fisa__valoare">
+              <a class="legatura" href={FIRMA.telefonLink}>{FIRMA.telefon}</a>
+              <span class="nota">{FIRMA.persoana}, {FIRMA.rol}</span>
+            </dd>
+          </div>
+          <div>
+            <dt class="fisa__cheie">WhatsApp</dt>
+            <dd class="fisa__valoare">
+              <a class="legatura" href={FIRMA.whatsapp} rel="noopener">{FIRMA.telefon}</a>
+            </dd>
+          </div>
+          <div>
+            <dt class="fisa__cheie">E-mail</dt>
+            <dd class="fisa__valoare">
+              <a class="legatura" href={`mailto:${FIRMA.email}`}>{FIRMA.email}</a>
+            </dd>
+          </div>
+          <div>
+            <dt class="fisa__cheie">Birou</dt>
+            <dd class="fisa__valoare">{FIRMA.adresa}</dd>
+          </div>
+          <div>
+            <dt class="fisa__cheie">Program</dt>
+            <dd class="fisa__valoare">{FIRMA.program}</dd>
+          </div>
+        </div>
+      </div>
+
+      <div class="panou formular">
+        <h2>Scrie-ne</h2>
+        <p class="nota">Răspundem în aceeași zi lucrătoare.</p>
+
+        <form id="formular-contact" novalidate>
+          <div class="camp">
+            <label for="nume">Nume</label>
+            <input type="text" id="nume" name="nume" autocomplete="name" required />
+          </div>
+
+          <div class="camp">
+            <label for="telefon">Telefon</label>
+            <input type="tel" id="telefon" name="telefon" autocomplete="tel" inputmode="tel" required />
+          </div>
+
+          <div class="camp">
+            <label for="interes">Ce te interesează</label>
+            <select id="interes" name="interes">
+              <option value="">Nu m-am hotărât încă</option>
+              {proiecte.map((p) => <option value={p.slug}>{p.nume}, {p.localitate}</option>)}
+            </select>
+          </div>
+
+          <div class="camp">
+            <label for="lot">Lot (opțional)</label>
+            <input type="text" id="lot" name="lot" placeholder="ex. B14" />
+          </div>
+
+          <div class="camp">
+            <label for="mesaj">Mesaj</label>
+            <textarea id="mesaj" name="mesaj" rows="4"></textarea>
+          </div>
+
+          <label class="acord">
+            <input type="checkbox" id="acord" name="acord" required />
+            <span>Sunt de acord să fiu contactat cu privire la solicitarea mea.</span>
+          </label>
+
+          <button type="submit" class="buton buton-primar">Trimite mesajul</button>
+          <p class="stare-formular" id="stare-formular" role="status"></p>
+        </form>
+      </div>
+    </div>
+  </div>
+</Baza>
+
+<script>
+  // La demo formularul nu trimite nicăieri. La proiectul real intră pe Resend
+  // sau direct pe WhatsApp, în funcție de ce preferă clientul.
+  const form = document.getElementById('formular-contact') as HTMLFormElement | null;
+  const stare = document.getElementById('stare-formular');
+
+  form?.addEventListener('submit', (e) => {
+    e.preventDefault();
+    if (!stare) return;
+    if (!form.checkValidity()) {
+      form.reportValidity();
+      return;
+    }
+    const parametri = new URLSearchParams(new FormData(form) as unknown as Record<string, string>);
+    stare.textContent = 'Demonstrație: mesajul nu se trimite. Datele completate ar ajunge la dezvoltator.';
+    stare.dataset.trimis = 'da';
+    console.info('[formular demo]', Object.fromEntries(parametri));
+  });
+
+  // Precompletăm lotul dacă utilizatorul vine dintr-un link de pe hartă.
+  const p = new URLSearchParams(window.location.search);
+  const lot = p.get('lot');
+  const parcelare = p.get('parcelare');
+  if (lot) (document.getElementById('lot') as HTMLInputElement).value = lot.split('-').pop()?.toUpperCase() ?? '';
+  if (parcelare) {
+    const select = document.getElementById('interes') as HTMLSelectElement;
+    if ([...select.options].some((o) => o.value === parcelare)) select.value = parcelare;
+  }
+</script>
+
+<style>
+  .continut {
+    max-width: 68rem;
+    margin-inline: auto;
+    padding: 3.5rem 1.25rem 0;
+  }
+
+  @media (min-width: 48rem) {
+    .continut {
+      padding-inline: 2rem;
+    }
+  }
+
+  .coloane {
+    display: grid;
+    gap: 3rem;
+  }
+
+  @media (min-width: 56rem) {
+    .coloane {
+      grid-template-columns: 1fr 24rem;
+      gap: 4rem;
+      align-items: start;
+    }
+  }
+
+  h1 {
+    font-size: clamp(2rem, 5vw, 3rem);
+  }
+
+  .intro {
+    margin-top: 1rem;
+    margin-bottom: 2.5rem;
+    font-size: 1.0625rem;
+    color: var(--color-ink-2);
+    max-width: 34rem;
+  }
+
+  .fisa__cheie {
+    font-weight: 500;
+  }
+
+  .fisa__valoare {
+    color: var(--color-ink-2);
+  }
+
+  .legatura {
+    color: var(--color-ink);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+
+  .nota {
+    display: block;
+    font-size: 0.8125rem;
+    color: var(--color-ink-3);
+    margin-top: 0.15rem;
+  }
+
+  .formular {
+    padding: 1.75rem;
+  }
+
+  .formular h2 {
+    font-size: 1.375rem;
+  }
+
+  form {
+    margin-top: 1.5rem;
+  }
+
+  .camp + .camp {
+    margin-top: 1rem;
+  }
+
+  .camp label {
+    display: block;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: var(--color-ink-2);
+    margin-bottom: 0.35rem;
+  }
+
+  input[type='text'],
+  input[type='tel'],
+  select,
+  textarea {
+    width: 100%;
+    padding: 0.55rem 0.75rem;
+    border: 1px solid var(--color-hairline);
+    border-radius: var(--radius-mic);
+    background: var(--color-paper-3);
+    font: inherit;
+    font-size: 0.9375rem;
+    color: var(--color-ink);
+  }
+
+  textarea {
+    resize: vertical;
+  }
+
+  .acord {
+    display: flex;
+    gap: 0.625rem;
+    margin-top: 1.25rem;
+    font-size: 0.8125rem;
+    color: var(--color-ink-2);
+    cursor: pointer;
+  }
+
+  .acord input {
+    accent-color: var(--color-accent);
+    width: 15px;
+    height: 15px;
+    flex: none;
+    margin-top: 0.15rem;
+  }
+
+  form .buton {
+    margin-top: 1.25rem;
+    width: 100%;
+  }
+
+  .stare-formular:empty {
+    display: none;
+  }
+
+  .stare-formular {
+    margin-top: 0.875rem;
+    font-size: 0.8125rem;
+    color: var(--color-accent);
+  }
+</style>

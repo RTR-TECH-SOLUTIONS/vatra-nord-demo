@@ -1,0 +1,1073 @@
+import { Map as MapLibre, Marker, NavigationControl, setWorkerUrl } from 'maplibre-gl';
+import type { GeoJSONSource } from 'maplibre-gl';
+import 'maplibre-gl/dist/maplibre-gl.css';
+import { cale } from '../lib/cale';
+import { TerraDraw, TerraDrawPolygonMode, TerraDrawLineStringMode, TerraDrawSelectMode } from 'terra-draw';
+import { TerraDrawMapLibreGLAdapter } from 'terra-draw-maplibre-gl-adapter';
+
+import {
+  genereazaParcelare,
+  proiectieLocala,
+  imparteLot,
+  unesteLoturi,
+  suprafataInel,
+  deschidereInel,
+  potentialConstruire,
+} from '../lib/parcelare.js';
+import { STATUSURI, ORDINE_STATUS, euro, mp, ml } from '../lib/loturi';
+import type { Proiect, ProprietatiLot, StatusLot } from '../lib/loturi';
+import { citeste, scrie, goleste, numaraModificari, type Depozit, type Modificare } from '../lib/depozit';
+import { styleBasemap, type ModBasemap } from '../lib/basemap';
+import { elementPin, marcaDinNume, ORDINE_STARI, STARI_PIN, type Pin, type StarePin } from '../lib/pin';
+
+setWorkerUrl(cale('/maplibre/maplibre-gl-worker.mjs'));
+
+const el = <T extends HTMLElement>(id: string) => document.getElementById(id) as T | null;
+
+function citesteJSON<T>(id: string): T {
+  const nod = document.getElementById(id);
+  if (!nod?.textContent) throw new Error(`Lipsește blocul de date #${id}`);
+  return JSON.parse(nod.textContent) as T;
+}
+
+const proiecte = citesteJSON<Proiect[]>('date-proiecte');
+const proiectDupaSlug = new Map(proiecte.map((p) => [p.slug, p]));
+
+type Inel = [number, number][];
+
+interface LotAdmin {
+  id: string;
+  cod: string;
+  proiect: string;
+  status: StatusLot;
+  suprafata: number;
+  front: number;
+  laturi: number;
+  pret_mp: number;
+  observatii: string | null;
+  sir: 0 | 1;
+  actualizat: string;
+  inel: Inel;
+  nou: boolean;
+}
+
+type Unealta = 'navigare' | 'lot-nou' | 'imparte' | 'teren' | 'forma' | 'pin';
+
+const gol: GeoJSON.FeatureCollection = { type: 'FeatureCollection', features: [] };
+
+let harta: MapLibre;
+let draw: TerraDraw;
+let modBasemap: ModBasemap = 'satelit';
+
+let baza: LotAdmin[] = [];
+let loturi: LotAdmin[] = [];
+let selectie: string[] = [];
+let unealta: Unealta = 'navigare';
+let idDesenTeren: string | number | null = null;
+let idDesenForma: string | number | null = null;
+let lotInEditare: string | null = null;
+
+/** Pinurile de proprietate: puse din panou, salvate în depozit. */
+let pinuri: Pin[] = [];
+/** Lista generată la build, ca să știm dacă panoul a schimbat ceva. */
+let bazaPinuri: Pin[] = [];
+let pinSelectat: string | null = null;
+let contorPin = 0;
+const marcherePin = new Map<string, Marker>();
+/**
+ * Marca urmează numele până când o scrii tu. Altfel un pin botezat mai târziu
+ * rămâne cu inițialele implicite de la creare, iar discul spune „P2” pe un
+ * teren care se cheamă Livada Periș.
+ */
+const marcaDeMana = new Set<string>();
+
+let teren: Inel | null = null;
+let obstacole: GeoJSON.Feature[] = [];
+let drumuri: GeoJSON.Feature[] = [];
+
+const istoric: string[] = [];
+let contorNou = 0;
+/**
+ * Dublu-click-ul care închide o linie sau un poligon ajunge și la handlerul de
+ * click pe loturi și ar schimba selecția imediat după operație. Îl ignorăm
+ * pentru câteva sute de milisecunde.
+ */
+let ignorClickPanaLa = 0;
+
+/* -------------------------------------------------------------------- ajutor */
+
+function numar(id: string, implicit: number) {
+  const n = Number(el<HTMLInputElement>(id)?.value);
+  return Number.isFinite(n) && n > 0 ? n : implicit;
+}
+
+function anunta(text: string, tip: 'info' | 'lucru' | 'eroare' = 'info') {
+  const nod = el('mesaj');
+  if (!nod) return;
+  nod.textContent = text;
+  nod.dataset.tip = tip;
+}
+
+function lotDupaId(id: string | null) {
+  return id ? loturi.find((l) => l.id === id) ?? null : null;
+}
+
+function memoreaza() {
+  istoric.push(JSON.stringify(loturi));
+  if (istoric.length > 40) istoric.shift();
+}
+
+function inapoi() {
+  const stare = istoric.pop();
+  if (!stare) return anunta('Nu mai am ce anula.');
+  loturi = JSON.parse(stare) as LotAdmin[];
+  selectie = selectie.filter((id) => loturi.some((l) => l.id === id));
+  anunta('Am anulat ultima modificare.');
+  randeaza();
+}
+
+function laLot(f: GeoJSON.Feature<GeoJSON.Polygon, ProprietatiLot>, nou = false): LotAdmin {
+  const p = f.properties;
+  return {
+    id: p.id,
+    cod: p.cod,
+    proiect: p.proiect,
+    status: p.status,
+    suprafata: p.suprafata,
+    front: p.front,
+    laturi: p.laturi ?? f.geometry.coordinates[0].length - 1,
+    pret_mp: p.pret_mp,
+    observatii: p.observatii ?? null,
+    sir: p.sir ?? 0,
+    actualizat: p.actualizat,
+    inel: f.geometry.coordinates[0] as Inel,
+    nou,
+  };
+}
+
+function caFeature(l: LotAdmin): GeoJSON.Feature<GeoJSON.Polygon, ProprietatiLot> {
+  return {
+    type: 'Feature',
+    geometry: { type: 'Polygon', coordinates: [l.inel] },
+    properties: {
+      id: l.id,
+      cod: l.cod,
+      proiect: l.proiect,
+      sir: l.sir,
+      status: l.status,
+      suprafata: l.suprafata,
+      front: l.front,
+      laturi: l.laturi,
+      pret_total: Math.round(l.suprafata * l.pret_mp),
+      pret_mp: l.pret_mp,
+      tva_inclus: false,
+      observatii: l.observatii,
+      actualizat: l.actualizat,
+    },
+  };
+}
+
+function recalculeaza(l: LotAdmin) {
+  l.suprafata = suprafataInel(l.inel);
+  l.front = deschidereInel(l.inel);
+  l.laturi = l.inel.length - 1;
+}
+
+/* ------------------------------------------------------------------ încărcare */
+
+async function incarca() {
+  const r = await fetch(cale('/date/loturi.geojson'));
+  const colectie = (await r.json()) as GeoJSON.FeatureCollection<GeoJSON.Polygon, ProprietatiLot>;
+  baza = colectie.features.map((f) => laLot(f));
+
+  const d = citeste();
+  const sterse = new Set(d.sterse);
+  loturi = baza
+    .filter((l) => !sterse.has(l.id))
+    .map((l) => {
+      const m = d.modificari[l.id];
+      return m ? { ...l, ...m, observatii: m.observatii ?? l.observatii } : { ...l };
+    });
+  for (const f of d.adaugate) loturi.push(laLot(f, true));
+  contorNou = d.adaugate.length;
+  const rPinuri = await fetch(cale('/date/pinuri.json'));
+  bazaPinuri = rPinuri.ok ? ((await rPinuri.json()) as Pin[]) : [];
+  pinuri = (d.pinuri ?? bazaPinuri).map((x) => ({ ...x }));
+  for (const x of pinuri) marcaDeMana.add(x.id);
+  contorPin = pinuri.length;
+  pinSelectat = null;
+  randeaza();
+}
+
+/* ------------------------------------------------------------------ publicare */
+
+function calculeazaDepozit(): Omit<Depozit, 'versiune' | 'actualizat'> {
+  const dupaId = new Map(loturi.map((l) => [l.id, l]));
+  const modificari: Record<string, Modificare> = {};
+  const sterse: string[] = [];
+
+  for (const b of baza) {
+    const l = dupaId.get(b.id);
+    if (!l) {
+      sterse.push(b.id);
+      continue;
+    }
+    const m: Modificare = {};
+    if (l.status !== b.status) m.status = l.status;
+    if (l.pret_mp !== b.pret_mp) m.pret_mp = l.pret_mp;
+    if (l.cod !== b.cod) m.cod = l.cod;
+    if ((l.observatii ?? null) !== (b.observatii ?? null)) m.observatii = l.observatii;
+    if (Object.keys(m).length) modificari[b.id] = m;
+  }
+
+  const adaugate = loturi.filter((l) => l.nou).map(caFeature);
+  // Dacă lista de pinuri e neatinsă, nu o mai scriem: harta publică folosește
+  // atunci direct build-ul, iar depozitul nu poartă o copie inutilă.
+  const pinuriDePublicat =
+    JSON.stringify(pinuri) === JSON.stringify(bazaPinuri) ? null : pinuri;
+  return { modificari, adaugate, sterse, pinuri: pinuriDePublicat };
+}
+
+function publica() {
+  const d = scrie(calculeazaDepozit());
+  const n = numaraModificari(d);
+  anunta(
+    n === 0
+      ? 'Publicat. Nu erau modificări față de datele generate.'
+      : `Publicat: ${n} ${n === 1 ? 'modificare' : 'modificări'}. Deschide harta ca să le vezi.`,
+  );
+  randeaza();
+}
+
+function renunta() {
+  goleste();
+  anunta('Am șters modificările publicate. Se reîncarcă datele generate.');
+  incarca();
+}
+
+/* --------------------------------------------------------------------- harta */
+
+const container = el<HTMLDivElement>('harta-admin');
+if (!container) throw new Error('Lipsește containerul hărții');
+
+const primul = proiecte[0];
+harta = new MapLibre({
+  container,
+  style: styleBasemap(modBasemap),
+  center: primul.camera.center,
+  zoom: 15.6,
+  bearing: primul.camera.bearing,
+  pitch: 0,
+  attributionControl: { compact: true },
+  logo: false,
+  preserveDrawingBuffer: true,
+} as ConstructorParameters<typeof MapLibre>[0]);
+
+harta.addControl(new NavigationControl({ visualizePitch: false }), 'bottom-right');
+
+// Doar în dev, ca să pot verifica operațiile din consolă și din teste.
+if (import.meta.env.DEV) {
+  (window as unknown as Record<string, unknown>).__admin = {
+    harta,
+    get loturi() { return loturi; },
+    get selectie() { return selectie; },
+    get teren() { return teren; },
+  };
+}
+
+draw = new TerraDraw({
+  adapter: new TerraDrawMapLibreGLAdapter({ map: harta }),
+  modes: [
+    new TerraDrawPolygonMode({
+      styles: { fillColor: '#2f5d46', fillOpacity: 0.22, outlineColor: '#2f5d46', outlineWidth: 3 },
+    }),
+    new TerraDrawLineStringMode({ styles: { lineStringColor: '#c08a2a', lineStringWidth: 3 } }),
+    new TerraDrawSelectMode({
+      flags: {
+        polygon: {
+          feature: { draggable: true, coordinates: { midpoints: true, draggable: true, deletable: true } },
+        },
+      },
+    }),
+  ],
+});
+
+harta.on('load', () => {
+  harta.addSource('obstacole', { type: 'geojson', data: gol });
+  harta.addLayer({
+    id: 'obstacole-fond',
+    type: 'fill',
+    source: 'obstacole',
+    paint: { 'fill-color': '#b4483a', 'fill-opacity': 0.2 },
+  });
+
+  harta.addSource('drumuri-noi', { type: 'geojson', data: gol });
+  harta.addLayer({
+    id: 'drumuri-noi-fond',
+    type: 'fill',
+    source: 'drumuri-noi',
+    paint: { 'fill-color': '#efe9dc', 'fill-opacity': 0.65 },
+  });
+
+  harta.addSource('loturi', { type: 'geojson', data: gol, promoteId: 'id' });
+  for (const s of ORDINE_STATUS) {
+    harta.addLayer({
+      id: `lot-${s}`,
+      type: 'fill',
+      source: 'loturi',
+      filter: ['==', ['get', 'status'], s],
+      paint: { 'fill-color': STATUSURI[s].culoare, 'fill-opacity': STATUSURI[s].opacitate },
+    });
+    harta.addLayer({
+      id: `lot-${s}-contur`,
+      type: 'line',
+      source: 'loturi',
+      filter: ['==', ['get', 'status'], s],
+      paint: { 'line-color': STATUSURI[s].contur, 'line-width': 1 },
+    });
+  }
+  harta.addLayer({
+    id: 'lot-selectat',
+    type: 'line',
+    source: 'loturi',
+    paint: { 'line-color': '#ffffff', 'line-width': 3 },
+    filter: ['in', ['get', 'id'], ['literal', []]],
+  });
+  harta.addLayer({
+    id: 'lot-cod',
+    type: 'symbol',
+    source: 'loturi',
+    minzoom: 16.4,
+    layout: {
+      'text-field': ['get', 'cod'],
+      'text-font': ['Noto Sans Bold'],
+      'text-size': 11,
+    },
+    paint: { 'text-color': '#ffffff', 'text-halo-color': 'rgba(0,0,0,0.7)', 'text-halo-width': 1.2 },
+  });
+
+  draw.start();
+  // Abia acum se poate seta un mod; înainte de start, Terra Draw aruncă.
+  schimbaUnealta('navigare');
+  el('admin-incarcare')?.setAttribute('hidden', '');
+
+  harta.on('click', ORDINE_STATUS.map((s) => `lot-${s}`), (e) => {
+    const id = e.features?.[0]?.properties?.id as string | undefined;
+    if (!id) return;
+    // Cu unealta de pin, click-ul pune un semn, nu selectează lotul de dedesubt.
+    if (unealta === 'pin' || unealta === 'imparte' || Date.now() < ignorClickPanaLa) return;
+    if (selectie.includes(id)) selectie = selectie.filter((x) => x !== id);
+    else if (unealta === 'navigare' && (e.originalEvent as MouseEvent).shiftKey) selectie = [...selectie, id];
+    else selectie = [id];
+    randeaza();
+  });
+
+  harta.on('click', (e) => {
+    if (unealta !== 'pin' || Date.now() < ignorClickPanaLa) return;
+    adaugaPin(e.lngLat.lng, e.lngLat.lat);
+  });
+
+  legaFormularPin();
+  incarca();
+});
+
+/* --------------------------------------------------------------- pinuri */
+
+function pinDupaId(id: string | null) {
+  return id ? (pinuri.find((x) => x.id === id) ?? null) : null;
+}
+
+function adaugaPin(lng: number, lat: number) {
+  contorPin += 1;
+  const pin: Pin = {
+    id: `pin-${contorPin}-${Math.round(lng * 1e5)}${Math.round(lat * 1e5)}`,
+    nume: `Proprietate ${contorPin}`,
+    marca: `P${contorPin}`,
+    stare: 'disponibil',
+    detaliu: null,
+    legatura: null,
+    lng,
+    lat,
+  };
+  pinuri.push(pin);
+  pinSelectat = pin.id;
+  // Un pin nou vrea să fie numit imediat, nu căutat prin panou.
+  schimbaUnealta('navigare');
+  anunta(`Pin adăugat. Scrie-i numele și starea, apoi publică.`);
+  randeaza();
+  el<HTMLInputElement>('pin-nume')?.select();
+}
+
+function stergePin() {
+  const pin = pinDupaId(pinSelectat);
+  if (!pin) return;
+  pinuri = pinuri.filter((x) => x.id !== pin.id);
+  pinSelectat = null;
+  anunta(`Pinul „${pin.nume}” a fost șters.`);
+  randeaza();
+}
+
+/**
+ * Aduce marcherele la zi cu lista de pinuri. Le refolosim după id, ca să nu
+ * pierdem trasul cu mouse-ul în mijlocul unei mutări.
+ */
+function randezaPinuri() {
+  for (const [id, m] of marcherePin) {
+    if (!pinuri.some((x) => x.id === id)) {
+      m.remove();
+      marcherePin.delete(id);
+    }
+  }
+
+  for (const pin of pinuri) {
+    const vechi = marcherePin.get(pin.id);
+    if (vechi) vechi.remove();
+
+    const nod = elementPin(pin);
+    nod.classList.toggle('pin--activ', pin.id === pinSelectat);
+    nod.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      pinSelectat = pin.id;
+      selectie = [];
+      const grup = el('grup-pin');
+      if (grup) grup.hidden = false;
+      randeaza();
+    });
+
+    const marker = new Marker({ element: nod, anchor: 'bottom', draggable: true })
+      .setLngLat([pin.lng, pin.lat])
+      .addTo(harta);
+    marker.on('dragend', () => {
+      const l = marker.getLngLat();
+      pin.lng = l.lng;
+      pin.lat = l.lat;
+      anunta(`„${pin.nume}” mutat.`);
+      randeaza();
+    });
+    marcherePin.set(pin.id, marker);
+  }
+
+  const nr = el('nr-pinuri');
+  if (nr) nr.textContent = pinuri.length ? `${pinuri.length} pe hartă` : '';
+
+  const pin = pinDupaId(pinSelectat);
+  const formular = el('formular-pin');
+  const fara = el('fara-pin');
+  if (formular && fara) {
+    formular.hidden = !pin;
+    fara.hidden = Boolean(pin);
+  }
+  if (!pin) return;
+
+  const set = (id: string, v: string) => {
+    const nod = el<HTMLInputElement | HTMLSelectElement>(id);
+    if (nod && nod.value !== v) nod.value = v;
+  };
+  set('pin-nume', pin.nume);
+  set('pin-marca', pin.marca);
+  set('pin-stare', pin.stare);
+  set('pin-detaliu', pin.detaliu ?? '');
+  set('pin-legatura', pin.legatura ?? '');
+}
+
+function legaFormularPin() {
+  const laSchimbare = () => {
+    const pin = pinDupaId(pinSelectat);
+    if (!pin) return;
+    const val = (id: string) => el<HTMLInputElement | HTMLSelectElement>(id)?.value.trim() ?? '';
+    const numeNou = val('pin-nume') || pin.nume;
+    const marcaScrisa = val('pin-marca');
+    pin.nume = numeNou;
+    if (!marcaScrisa) marcaDeMana.delete(pin.id);
+    pin.marca = (marcaDeMana.has(pin.id) ? marcaScrisa : marcaDinNume(numeNou))
+      .slice(0, 3)
+      .toUpperCase();
+    pin.stare = (val('pin-stare') || 'disponibil') as StarePin;
+    pin.detaliu = val('pin-detaliu') || null;
+    pin.legatura = val('pin-legatura') || null;
+    randeaza();
+  };
+
+  const campMarca = el<HTMLInputElement>('pin-marca');
+  campMarca?.addEventListener('input', () => {
+    if (pinSelectat && campMarca.value.trim()) marcaDeMana.add(pinSelectat);
+  });
+
+  for (const id of ['pin-nume', 'pin-marca', 'pin-stare', 'pin-detaliu', 'pin-legatura']) {
+    const nod = el<HTMLInputElement>(id);
+    nod?.addEventListener('input', laSchimbare);
+    nod?.addEventListener('change', laSchimbare);
+  }
+  el<HTMLButtonElement>('sterge-pin')?.addEventListener('click', stergePin);
+
+  const selectStare = el<HTMLSelectElement>('pin-stare');
+  if (selectStare) {
+    selectStare.innerHTML = ORDINE_STARI.map(
+      (x) => `<option value="${x}">${STARI_PIN[x].eticheta}</option>`,
+    ).join('');
+  }
+}
+
+/* -------------------------------------------------------------------- unelte */
+
+function schimbaUnealta(u: Unealta) {
+  // Ieșim curat din editarea de formă înainte de orice altă unealtă.
+  if (unealta === 'forma' && u !== 'forma') incheieForma();
+  unealta = u;
+  for (const b of document.querySelectorAll<HTMLButtonElement>('[data-unealta]')) {
+    b.setAttribute('aria-pressed', String(b.dataset.unealta === u));
+  }
+  if (u === 'pin') draw.setMode('select');
+  else if (u === 'lot-nou' || u === 'teren') draw.setMode('polygon');
+  else if (u === 'imparte') draw.setMode('linestring');
+  else draw.setMode('select');
+
+  const ajutoare: Record<Unealta, string> = {
+    navigare: 'Click pe un lot ca să îl editezi. Shift plus click adaugă la selecție.',
+    'lot-nou': 'Desenează conturul unui lot nou. Dublu-click închide poligonul.',
+    imparte: 'Trage o linie peste lotul selectat, dintr-o latură în alta.',
+    teren: 'Desenează conturul terenului pe care vrei să generezi parcelarea.',
+    forma: 'Trage de colțuri ca să schimbi forma lotului. Apasă „Gata" când termini.',
+  };
+  anunta(ajutoare[u]);
+  const grup = el('grup-pin');
+  if (grup) grup.hidden = u !== 'pin' && !pinSelectat;
+  randeaza();
+}
+
+draw.on('finish', (id, context) => {
+  if (context.action !== 'draw') return;
+  const f = draw.getSnapshotFeature(id);
+  if (!f) return;
+
+  if (unealta === 'teren' && f.geometry.type === 'Polygon') {
+    if (idDesenTeren !== null && idDesenTeren !== id) draw.removeFeatures([idDesenTeren]);
+    idDesenTeren = id;
+    teren = f.geometry.coordinates[0] as Inel;
+    const camp = el<HTMLInputElement>('camp-azimut');
+    if (camp && !camp.dataset.atins) {
+      camp.value = String(azimutLaturaLunga(teren));
+      actualizeazaAzimut();
+    }
+    anunta('Teren desenat. Poți încărca obstacolele sau genera direct.');
+    randeaza();
+    return;
+  }
+
+  if (unealta === 'lot-nou' && f.geometry.type === 'Polygon') {
+    ignorClickPanaLa = Date.now() + 600;
+    adaugaLot(f.geometry.coordinates[0] as Inel);
+    draw.removeFeatures([id]);
+    return;
+  }
+
+  if (unealta === 'imparte' && f.geometry.type === 'LineString') {
+    ignorClickPanaLa = Date.now() + 600;
+    imparte(f.geometry.coordinates as Inel);
+    draw.removeFeatures([id]);
+    return;
+  }
+});
+
+// Editarea formei unui lot: citim înapoi geometria pe măsură ce se trage de colțuri.
+draw.on('change', (ids, tip) => {
+  if (tip !== 'update') return;
+  for (const id of ids) {
+    if (id === idDesenTeren) {
+      const f = draw.getSnapshotFeature(id);
+      if (f?.geometry.type === 'Polygon') teren = f.geometry.coordinates[0] as Inel;
+    }
+    if (id === idDesenForma && lotInEditare) {
+      const f = draw.getSnapshotFeature(id);
+      const lot = lotDupaId(lotInEditare);
+      if (f?.geometry.type === 'Polygon' && lot) {
+        lot.inel = f.geometry.coordinates[0] as Inel;
+        recalculeaza(lot);
+        randeaza();
+      }
+    }
+  }
+});
+
+/* ------------------------------------------------------------ operații loturi */
+
+function idNou() {
+  contorNou += 1;
+  return `manual-${Date.now().toString(36)}-${contorNou}`;
+}
+
+function adaugaLot(inel: Inel, sursa?: LotAdmin) {
+  memoreaza();
+  const proiect = sursa?.proiect ?? (el<HTMLSelectElement>('camp-proiect')?.value || proiecte[0].slug);
+  const lot: LotAdmin = {
+    id: idNou(),
+    cod: sursa ? `${sursa.cod}-${contorNou}` : `M${contorNou}`,
+    proiect,
+    status: 'disponibil',
+    suprafata: suprafataInel(inel),
+    front: deschidereInel(inel),
+    laturi: inel.length - 1,
+    pret_mp: sursa?.pret_mp ?? numar('camp-pret', 60),
+    observatii: sursa ? 'lot rezultat din împărțire' : 'lot delimitat manual',
+    sir: sursa?.sir ?? 0,
+    actualizat: new Date().toISOString().slice(0, 10),
+    inel,
+    nou: true,
+  };
+  loturi.push(lot);
+  selectie = [lot.id];
+  anunta(`Lot adăugat: ${mp(lot.suprafata)}, deschidere ${ml(lot.front)}.`);
+  randeaza();
+  return lot;
+}
+
+function imparte(linie: Inel) {
+  const lot = lotDupaId(selectie[0]);
+  if (!lot) return anunta('Selectează întâi lotul pe care vrei să îl împarți.', 'eroare');
+  const parti = imparteLot(lot.inel, linie);
+  if (!parti || parti.length < 2) {
+    return anunta('Linia nu a tăiat lotul. Trage-o dintr-o latură în cealaltă.', 'eroare');
+  }
+  memoreaza();
+  loturi = loturi.filter((l) => l.id !== lot.id);
+  const create = parti.map((inel, i) => {
+    const l: LotAdmin = {
+      ...lot,
+      id: idNou(),
+      cod: `${lot.cod}${'ABCDEFGH'[i] ?? i}`,
+      inel: inel as Inel,
+      nou: true,
+      observatii: 'lot rezultat din împărțire',
+    };
+    recalculeaza(l);
+    loturi.push(l);
+    return l;
+  });
+  selectie = create.map((l) => l.id);
+  schimbaUnealta('navigare');
+  anunta(`Lotul ${lot.cod} a fost împărțit în ${create.length}: ${create.map((l) => mp(l.suprafata)).join(' și ')}.`);
+  randeaza();
+}
+
+function uneste() {
+  if (selectie.length !== 2) return anunta('Selectează exact două loturi alăturate.', 'eroare');
+  const [a, b] = selectie.map((id) => lotDupaId(id));
+  if (!a || !b) return;
+  const inel = unesteLoturi(a.inel, b.inel);
+  if (!inel) return anunta('Loturile nu se ating, nu le pot uni.', 'eroare');
+  memoreaza();
+  loturi = loturi.filter((l) => l.id !== a.id && l.id !== b.id);
+  const lot: LotAdmin = {
+    ...a,
+    id: idNou(),
+    cod: `${a.cod}+${b.cod}`,
+    inel: inel as Inel,
+    nou: true,
+    observatii: 'lot rezultat din unirea a două loturi',
+  };
+  recalculeaza(lot);
+  loturi.push(lot);
+  selectie = [lot.id];
+  anunta(`Loturile ${a.cod} și ${b.cod} au fost unite: ${mp(lot.suprafata)}.`);
+  randeaza();
+}
+
+function stergeSelectia() {
+  if (!selectie.length) return;
+  memoreaza();
+  const n = selectie.length;
+  loturi = loturi.filter((l) => !selectie.includes(l.id));
+  selectie = [];
+  anunta(`${n} ${n === 1 ? 'lot șters' : 'loturi șterse'}.`);
+  randeaza();
+}
+
+function incepeForma() {
+  const lot = lotDupaId(selectie[0]);
+  if (!lot) return anunta('Selectează întâi un lot.', 'eroare');
+  memoreaza();
+  lotInEditare = lot.id;
+  const rezultat = draw.addFeatures([
+    {
+      id: `forma-${Date.now()}`,
+      type: 'Feature',
+      geometry: { type: 'Polygon', coordinates: [lot.inel] },
+      properties: { mode: 'polygon' },
+    } as never,
+  ]);
+  const adaugat = draw.getSnapshot().find((f) => f.geometry.type === 'Polygon' && f.id !== idDesenTeren);
+  idDesenForma = adaugat?.id ?? null;
+  void rezultat;
+  schimbaUnealta('forma');
+}
+
+function incheieForma() {
+  if (idDesenForma !== null) draw.removeFeatures([idDesenForma]);
+  idDesenForma = null;
+  lotInEditare = null;
+}
+
+/* ------------------------------------------------------------------ obstacole */
+
+function bbox(inel: Inel, marja = 0.003) {
+  let minLon = 180, minLat = 90, maxLon = -180, maxLat = -90;
+  for (const [lon, lat] of inel) {
+    minLon = Math.min(minLon, lon); maxLon = Math.max(maxLon, lon);
+    minLat = Math.min(minLat, lat); maxLat = Math.max(maxLat, lat);
+  }
+  return [minLat - marja, minLon - marja, maxLat + marja, maxLon + marja];
+}
+
+async function incarcaObstacole() {
+  if (!teren) return anunta('Desenează întâi conturul terenului.', 'eroare');
+  const buton = el<HTMLButtonElement>('incarca-obstacole');
+  if (buton) buton.disabled = true;
+  anunta('Se descarcă drumurile și clădirile din zonă…', 'lucru');
+  const [s, w, n, e] = bbox(teren);
+  const q = `[out:json][timeout:60];(way["highway"](${s},${w},${n},${e});way["building"](${s},${w},${n},${e});way["natural"="water"](${s},${w},${n},${e}););out geom;`;
+  try {
+    const r = await fetch('https://overpass-api.de/api/interpreter', {
+      method: 'POST',
+      body: new URLSearchParams({ data: q }),
+    });
+    if (!r.ok) throw new Error(String(r.status));
+    const d = await r.json();
+    obstacole = [];
+    for (const elem of d.elements ?? []) {
+      const g = elem.geometry;
+      if (!g || g.length < 2) continue;
+      const t = elem.tags ?? {};
+      const coords = g.map((p: { lon: number; lat: number }) => [p.lon, p.lat]);
+      const inchis = coords.length > 3 && coords[0][0] === coords.at(-1)[0] && coords[0][1] === coords.at(-1)[1];
+      if (t.highway) {
+        obstacole.push({
+          type: 'Feature',
+          properties: { tip: 'drum', clasa: t.highway },
+          geometry: { type: 'LineString', coordinates: coords },
+        } as GeoJSON.Feature);
+      } else if (inchis) {
+        obstacole.push({
+          type: 'Feature',
+          properties: { tip: t.building ? 'cladire' : 'apa' },
+          geometry: { type: 'Polygon', coordinates: [coords] },
+        } as GeoJSON.Feature);
+      }
+    }
+    anunta(`${obstacole.length} obstacole încărcate. Vor fi ocolite la generare.`);
+  } catch (err) {
+    anunta(`Nu am putut încărca obstacolele (${(err as Error).message}). Poți genera oricum.`, 'eroare');
+  } finally {
+    if (buton) buton.disabled = false;
+    randeaza();
+  }
+}
+
+/* ------------------------------------------------------------------ generarea */
+
+function azimutLaturaLunga(inel: Inel) {
+  const pr = proiectieLocala(inel[0]);
+  const P = inel.map(pr.laMetri);
+  let best = { L: -1, az: 0 };
+  for (let i = 0; i < P.length; i += 1) {
+    const a = P[i];
+    const b = P[(i + 1) % P.length];
+    const L = Math.hypot(b[0] - a[0], b[1] - a[1]);
+    if (L > best.L) best = { L, az: ((Math.atan2(b[0] - a[0], b[1] - a[1]) * 180) / Math.PI + 360) % 180 };
+  }
+  return Math.round(best.az);
+}
+
+function genereaza() {
+  if (!teren) return anunta('Desenează întâi conturul terenului.', 'eroare');
+  anunta('Se împarte terenul…', 'lucru');
+  const front = numar('camp-front', 18);
+  const adancime = numar('camp-adancime', 33);
+  try {
+    const rezultat = genereazaParcelare({
+      teren,
+      obstacole,
+      azimut: numar('camp-azimut', 90),
+      front,
+      adancime,
+      drumInterior: numar('camp-drum', 8),
+      drumTransversal: numar('camp-transversal', 8),
+      pasTransversal: numar('camp-pas', 130),
+      retragere: numar('camp-retragere', 5),
+      minSuprafata: Math.round(front * adancime * 0.62),
+      marjaObstacol: numar('camp-marja', 3),
+    });
+
+    memoreaza();
+    const prefix = (el<HTMLInputElement>('camp-prefix')?.value || 'M').toUpperCase();
+    const proiect = el<HTMLSelectElement>('camp-proiect')?.value || proiecte[0].slug;
+    const pret = numar('camp-pret', 60);
+    for (const [i, l] of rezultat.loturi.entries()) {
+      contorNou += 1;
+      loturi.push({
+        id: idNou(),
+        cod: `${prefix}${i + 1}`,
+        proiect,
+        status: 'disponibil',
+        suprafata: l.suprafata,
+        front: l.front,
+        laturi: l.laturi,
+        pret_mp: pret,
+        observatii: null,
+        sir: l.sir as 0 | 1,
+        actualizat: new Date().toISOString().slice(0, 10),
+        inel: l.inel as Inel,
+        nou: true,
+      });
+    }
+    drumuri = rezultat.drumuri.map((d) => ({
+      type: 'Feature',
+      properties: { banda: d.banda },
+      geometry: { type: 'Polygon', coordinates: d.inel },
+    })) as GeoJSON.Feature[];
+
+    selectie = [];
+    const st = rezultat.statistici;
+    anunta(
+      `${st.loturi} loturi pe ${st.teren_ha} ha, randament ${st.randament}%. ` +
+        `${st.neregulate} urmează hotarul, cu până la ${st.laturi_max} laturi. Nu uita să publici.`,
+    );
+  } catch (err) {
+    anunta(`Împărțirea a eșuat: ${(err as Error).message}`, 'eroare');
+  }
+  randeaza();
+}
+
+/* ---------------------------------------------------------------- randarea UI */
+
+function randeaza() {
+  randezaPinuri();
+  (harta.getSource('loturi') as GeoJSONSource | undefined)?.setData({
+    type: 'FeatureCollection',
+    features: loturi.map(caFeature),
+  });
+  (harta.getSource('drumuri-noi') as GeoJSONSource | undefined)?.setData({
+    type: 'FeatureCollection',
+    features: drumuri,
+  });
+  (harta.getSource('obstacole') as GeoJSONSource | undefined)?.setData({
+    type: 'FeatureCollection',
+    features: obstacole.filter((o) => o.geometry.type === 'Polygon'),
+  });
+  if (harta.getLayer('lot-selectat')) {
+    harta.setFilter('lot-selectat', ['in', ['get', 'id'], ['literal', selectie]]);
+  }
+
+  const lot = lotDupaId(selectie[0]);
+  const formular = el('formular-lot');
+  const fara = el('fara-selectie');
+  if (formular && fara) {
+    formular.hidden = !lot;
+    fara.hidden = Boolean(lot);
+  }
+
+  if (lot) {
+    const set = (id: string, v: string) => {
+      const nod = el<HTMLInputElement | HTMLSelectElement>(id);
+      if (nod && nod.value !== v) nod.value = v;
+    };
+    set('lot-cod', lot.cod);
+    set('lot-status', lot.status);
+    set('lot-pret', String(lot.pret_mp));
+    set('lot-observatii', lot.observatii ?? '');
+    const txt = (id: string, v: string) => {
+      const nod = el(id);
+      if (nod) nod.textContent = v;
+    };
+    txt('lot-suprafata', mp(lot.suprafata));
+    txt('lot-front', ml(lot.front));
+    txt('lot-laturi', `${lot.laturi} laturi`);
+    txt('lot-total', euro(Math.round(lot.suprafata * lot.pret_mp)));
+    const proiect = proiectDupaSlug.get(lot.proiect);
+    if (proiect) {
+      const c = potentialConstruire(lot.suprafata, proiect.urbanism);
+      txt('lot-amprenta', `${c.amprenta} m² la sol`);
+      txt('lot-desfasurata', `${c.desfasurata} m² desfășurat`);
+    }
+  }
+
+  const nrSel = el('nr-selectie');
+  if (nrSel) {
+    nrSel.textContent = selectie.length > 1 ? `${selectie.length} loturi selectate` : '';
+  }
+  for (const [id, activ] of [
+    ['uneste', selectie.length === 2],
+    ['sterge-lot', selectie.length > 0],
+    ['modifica-forma', selectie.length === 1],
+    ['genereaza', Boolean(teren)],
+    ['incarca-obstacole', Boolean(teren)],
+    ['inapoi', istoric.length > 0],
+  ] as const) {
+    const b = el<HTMLButtonElement>(id);
+    if (b) b.disabled = !activ;
+  }
+
+  const d = calculeazaDepozit();
+  // „Nepublicat” înseamnă „diferă de ce e salvat”, nu „diferă de datele
+  // generate”. Înainte se compara cu datele generate, deci butonul rămânea
+  // aprins și după publicare, iar pinurile nu-l aprindeau deloc.
+  const salvat = citeste();
+  const amprenta = (x: Omit<Depozit, 'versiune' | 'actualizat'>) =>
+    JSON.stringify([x.modificari, x.adaugate, x.sterse, x.pinuri]);
+  const nepublicat = amprenta(d) !== amprenta(salvat);
+  const bPublica = el<HTMLButtonElement>('publica');
+  if (bPublica) bPublica.disabled = !nepublicat;
+
+  const contor = el('contor');
+  if (contor) {
+    const disponibile = loturi.filter((l) => l.status === 'disponibil').length;
+    const valoare = loturi.reduce((s, l) => s + l.suprafata * l.pret_mp, 0);
+    contor.textContent = `${loturi.length} loturi · ${disponibile} disponibile · ${euro(valoare)}`;
+  }
+  const stareDepozit = el('stare-depozit');
+  if (stareDepozit) {
+    const bazaDupaId = new Map(bazaPinuri.map((x) => [x.id, JSON.stringify(x)]));
+    const pinuriSchimbate =
+      pinuri.filter((x) => bazaDupaId.get(x.id) !== JSON.stringify(x)).length +
+      bazaPinuri.filter((b) => !pinuri.some((x) => x.id === b.id)).length;
+    const n =
+      Object.keys(d.modificari).length + d.adaugate.length + d.sterse.length + pinuriSchimbate;
+    if (nepublicat) {
+      stareDepozit.textContent = `${n} ${n === 1 ? 'modificare nepublicată' : 'modificări nepublicate'}`;
+    } else if (n === 0) {
+      stareDepozit.textContent = 'Nimic de publicat';
+    } else {
+      stareDepozit.textContent = `${n} ${n === 1 ? 'modificare publicată' : 'modificări publicate'}`;
+    }
+    stareDepozit.dataset.activ = String(nepublicat);
+  }
+}
+
+function actualizeazaAzimut() {
+  const v = el<HTMLInputElement>('camp-azimut')?.value ?? '90';
+  const nod = el('valoare-azimut');
+  if (nod) nod.textContent = `${v}°`;
+}
+
+/* ----------------------------------------------------------------- comenzile */
+
+for (const b of document.querySelectorAll<HTMLButtonElement>('[data-unealta]')) {
+  b.addEventListener('click', () => schimbaUnealta(b.dataset.unealta as Unealta));
+}
+
+el<HTMLButtonElement>('gata-forma')?.addEventListener('click', () => schimbaUnealta('navigare'));
+el<HTMLButtonElement>('modifica-forma')?.addEventListener('click', incepeForma);
+el<HTMLButtonElement>('uneste')?.addEventListener('click', uneste);
+el<HTMLButtonElement>('sterge-lot')?.addEventListener('click', stergeSelectia);
+el<HTMLButtonElement>('inapoi')?.addEventListener('click', inapoi);
+el<HTMLButtonElement>('incarca-obstacole')?.addEventListener('click', incarcaObstacole);
+el<HTMLButtonElement>('genereaza')?.addEventListener('click', genereaza);
+el<HTMLButtonElement>('publica')?.addEventListener('click', publica);
+el<HTMLButtonElement>('renunta')?.addEventListener('click', renunta);
+
+el<HTMLInputElement>('camp-azimut')?.addEventListener('input', (e) => {
+  (e.target as HTMLInputElement).dataset.atins = 'da';
+  actualizeazaAzimut();
+});
+
+el<HTMLButtonElement>('aliniaza')?.addEventListener('click', () => {
+  if (!teren) return anunta('Desenează întâi terenul.', 'eroare');
+  const camp = el<HTMLInputElement>('camp-azimut');
+  if (camp) {
+    camp.value = String(azimutLaturaLunga(teren));
+    delete camp.dataset.atins;
+    actualizeazaAzimut();
+  }
+});
+
+for (const [id, aplica] of [
+  ['lot-cod', (l: LotAdmin, v: string) => { l.cod = v.toUpperCase(); }],
+  ['lot-status', (l: LotAdmin, v: string) => { l.status = v as StatusLot; }],
+  ['lot-pret', (l: LotAdmin, v: string) => { l.pret_mp = Number(v) || 0; }],
+  ['lot-observatii', (l: LotAdmin, v: string) => { l.observatii = v.trim() || null; }],
+] as const) {
+  const nod = el<HTMLInputElement>(id);
+  const laSchimbare = (e: Event) => {
+    const lot = lotDupaId(selectie[0]);
+    if (!lot) return;
+    aplica(lot, (e.target as HTMLInputElement).value);
+    randeaza();
+  };
+  nod?.addEventListener('input', laSchimbare);
+  nod?.addEventListener('change', laSchimbare);
+}
+
+el<HTMLButtonElement>('descarca')?.addEventListener('click', () => {
+  const pachet = {
+    type: 'FeatureCollection',
+    features: [
+      ...(teren ? [{ type: 'Feature', properties: { tip: 'teren' }, geometry: { type: 'Polygon', coordinates: [teren] } }] : []),
+      ...drumuri.map((d) => ({ ...d, properties: { ...d.properties, tip: 'drum' } })),
+      ...loturi.map((l) => {
+        const f = caFeature(l);
+        return { ...f, properties: { ...f.properties, tip: 'lot' } };
+      }),
+    ],
+  };
+  const blob = new Blob([JSON.stringify(pachet, null, 2)], { type: 'application/geo+json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'parcelare.geojson';
+  a.click();
+  URL.revokeObjectURL(url);
+});
+
+el<HTMLSelectElement>('sari-la')?.addEventListener('change', (e) => {
+  const p = proiectDupaSlug.get((e.target as HTMLSelectElement).value);
+  if (!p) return;
+  harta.flyTo({ center: p.camera.center, zoom: 15.6, bearing: p.camera.bearing, pitch: 0, duration: 900 });
+});
+
+for (const b of document.querySelectorAll<HTMLButtonElement>('[data-basemap]')) {
+  b.addEventListener('click', () => {
+    const mod = b.dataset.basemap as ModBasemap;
+    if (mod === modBasemap) return;
+    modBasemap = mod;
+    harta.setStyle(styleBasemap(mod));
+    harta.once('styledata', () => {
+      // Straturile proprii se pierd la schimbarea stilului; le punem la loc.
+      window.location.reload();
+    });
+    for (const alt of document.querySelectorAll<HTMLButtonElement>('[data-basemap]')) {
+      alt.setAttribute('aria-pressed', String(alt.dataset.basemap === mod));
+    }
+  });
+}
+
+window.addEventListener('keydown', (e) => {
+  if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z') {
+    e.preventDefault();
+    inapoi();
+  }
+  if (e.key === 'Escape') {
+    selectie = [];
+    schimbaUnealta('navigare');
+  }
+  if (e.key === 'Delete' || e.key === 'Backspace') {
+    const tinta = e.target as HTMLElement;
+    if (tinta.tagName === 'INPUT' || tinta.tagName === 'TEXTAREA' || tinta.tagName === 'SELECT') return;
+    e.preventDefault();
+    stergeSelectia();
+  }
+});
+
+const selectStatus = el<HTMLSelectElement>('lot-status');
+if (selectStatus) {
+  selectStatus.innerHTML = ORDINE_STATUS.map(
+    (s) => `<option value="${s}">${STATUSURI[s].eticheta}</option>`,
+  ).join('');
+}
+const optiuniProiect = proiecte
+  .map((p) => `<option value="${p.slug}">${p.nume}, ${p.localitate}</option>`)
+  .join('');
+const selectProiect = el<HTMLSelectElement>('camp-proiect');
+if (selectProiect) selectProiect.innerHTML = optiuniProiect;
+const selectSariLa = el<HTMLSelectElement>('sari-la');
+if (selectSariLa) selectSariLa.innerHTML = `<option value="">Sari la parcelare…</option>${optiuniProiect}`;
+
+actualizeazaAzimut();

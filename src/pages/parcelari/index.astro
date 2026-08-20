@@ -1,0 +1,198 @@
+---
+import { cale } from '../../lib/cale';
+import Baza from '../../layouts/Baza.astro';
+import proiecteJson from '../../data/proiecte.json';
+import { euro, ml, dataRo } from '../../lib/loturi';
+import type { Proiect } from '../../lib/loturi';
+import { FIRMA } from '../../lib/firma';
+
+const proiecte = proiecteJson as unknown as Proiect[];
+const totalDisponibile = proiecte.reduce((n, p) => n + p.statistici.disponibile, 0);
+const totalLoturi = proiecte.reduce((n, p) => n + p.statistici.total, 0);
+---
+
+<Baza
+  titlu={`Parcelări · ${FIRMA.nume}`}
+  descriere={`${totalDisponibile} loturi disponibile în ${proiecte.length} parcelări din nordul Bucureștiului, în Corbeanca și Balotești.`}
+>
+  <div class="continut">
+    <header class="antet">
+      <h1>Parcelări</h1>
+      <p class="intro">
+        {totalLoturi} de loturi în {proiecte.length} parcelări, toate în nordul Bucureștiului, la 17
+        până la 20 de kilometri de Piața Victoriei. {totalDisponibile} sunt disponibile acum.
+      </p>
+      <p class="nota">Disponibilitate actualizată {dataRo(proiecte[0].actualizat)}.</p>
+    </header>
+
+    <ul class="lista">
+      {
+        proiecte.map((p) => (
+          <li class="card">
+            <a class="card__imagine" href={cale(`/parcelari/${p.slug}`)} tabindex="-1" aria-hidden="true">
+              <img
+                src={cale(`/imagini/${p.slug}.jpg`)}
+                alt=""
+                width="1600"
+                height="900"
+                loading="lazy"
+              />
+            </a>
+            <div class="card__text">
+              <p class="card__loc">
+                {p.localitate}, {p.judet}
+              </p>
+              <h2>
+                <a href={cale(`/parcelari/${p.slug}`)}>{p.nume}</a>
+              </h2>
+              <p class="card__rezumat">{p.descriere[0].split('. ')[0]}.</p>
+
+              <dl class="card__cifre cifre">
+                <div>
+                  <dt>Disponibile</dt>
+                  <dd>
+                    {p.statistici.disponibile} din {p.statistici.total}
+                  </dd>
+                </div>
+                <div>
+                  <dt>Suprafețe</dt>
+                  <dd>
+                    {p.statistici.suprafata_min} - {p.statistici.suprafata_max} m²
+                  </dd>
+                </div>
+                <div>
+                  <dt>Deschidere minimă</dt>
+                  <dd>{ml(p.statistici.front_min)}</dd>
+                </div>
+                <div>
+                  <dt>De la</dt>
+                  <dd>{euro(p.statistici.pret_total_min ?? 0)} + TVA</dd>
+                </div>
+              </dl>
+
+              <div class="card__actiuni">
+                <a class="buton buton-primar" href={cale(`/parcelari/${p.slug}`)}>Detalii și listă de loturi</a>
+                <a class="buton buton-secundar" href={cale(`/?parcelare=${p.slug}`)}>Pe hartă</a>
+              </div>
+            </div>
+          </li>
+        ))
+      }
+    </ul>
+  </div>
+</Baza>
+
+<style>
+  .continut {
+    max-width: 68rem;
+    margin-inline: auto;
+    padding: 3.5rem 1.25rem 0;
+  }
+
+  @media (min-width: 48rem) {
+    .continut {
+      padding-inline: 2rem;
+    }
+  }
+
+  .antet {
+    max-width: 42rem;
+  }
+
+  .antet h1 {
+    font-size: clamp(2rem, 5vw, 3rem);
+  }
+
+  .intro {
+    margin-top: 1rem;
+    font-size: 1.0625rem;
+    color: var(--color-ink-2);
+  }
+
+  .nota {
+    margin-top: 0.5rem;
+    font-size: 0.8125rem;
+    color: var(--color-ink-3);
+  }
+
+  .lista {
+    margin-top: 3rem;
+    display: grid;
+    gap: 2.5rem;
+  }
+
+  .card {
+    display: grid;
+    gap: 1.5rem;
+    padding-bottom: 2.5rem;
+    border-bottom: 1px solid var(--color-hairline);
+  }
+
+  .card:last-child {
+    border-bottom: 0;
+  }
+
+  @media (min-width: 52rem) {
+    .card {
+      grid-template-columns: 22rem 1fr;
+      gap: 2.25rem;
+      align-items: start;
+    }
+  }
+
+  .card__imagine img {
+    width: 100%;
+    aspect-ratio: 16 / 10;
+    object-fit: cover;
+    border-radius: var(--radius-panou);
+    display: block;
+  }
+
+  .card__loc {
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    color: var(--color-ink-2);
+  }
+
+  .card h2 {
+    font-size: 1.75rem;
+    margin-top: 0.25rem;
+  }
+
+  .card h2 a:hover {
+    color: var(--color-accent);
+  }
+
+  .card__rezumat {
+    margin-top: 0.75rem;
+    color: var(--color-ink-2);
+    max-width: 40rem;
+  }
+
+  .card__cifre {
+    margin-top: 1.25rem;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+    gap: 0.875rem 1.5rem;
+    border-top: 1px solid var(--color-hairline);
+    padding-top: 1.125rem;
+  }
+
+  .card__cifre dt {
+    font-size: 0.75rem;
+    color: var(--color-ink-3);
+  }
+
+  .card__cifre dd {
+    font-family: var(--font-mono);
+    font-size: 0.9375rem;
+    margin-top: 0.15rem;
+  }
+
+  .card__actiuni {
+    margin-top: 1.5rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.625rem;
+  }
+</style>

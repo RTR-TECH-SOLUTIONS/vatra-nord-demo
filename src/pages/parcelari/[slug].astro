@@ -1,0 +1,665 @@
+---
+import { cale } from '../../lib/cale';
+import Baza from '../../layouts/Baza.astro';
+import proiecteJson from '../../data/proiecte.json';
+import loturiJson from '../../data/loturi.json';
+import poiJson from '../../data/poi.json';
+import { STATUSURI, ORDINE_STATUS, euro, mp, ml, dataRo } from '../../lib/loturi';
+import type { Proiect, ProprietatiLot } from '../../lib/loturi';
+import { km, minute, kmRo } from '../../lib/distante';
+import { FIRMA } from '../../lib/firma';
+import AplicaPublicat from '../../components/AplicaPublicat.astro';
+
+export function getStaticPaths() {
+  const proiecte = proiecteJson as unknown as Proiect[];
+  return proiecte.map((p) => ({ params: { slug: p.slug }, props: { proiect: p } }));
+}
+
+interface Props {
+  proiect: Proiect;
+}
+
+const { proiect } = Astro.props;
+const s = proiect.statistici;
+
+const toateLoturile = (loturiJson as unknown as { features: { properties: ProprietatiLot }[] }).features
+  .map((f) => f.properties)
+  .filter((l) => l.proiect === proiect.slug);
+
+const ordoneazaCod = (a: ProprietatiLot, b: ProprietatiLot) => {
+  const litera = a.cod[0].localeCompare(b.cod[0]);
+  return litera !== 0 ? litera : Number(a.cod.slice(1)) - Number(b.cod.slice(1));
+};
+
+const deVanzare = toateLoturile
+  .filter((l) => STATUSURI[l.status].vandabil)
+  .sort(ordoneazaCod);
+const restul = toateLoturile.filter((l) => !STATUSURI[l.status].vandabil).sort(ordoneazaCod);
+
+const centru: [number, number] = [
+  (proiect.bbox[0] + proiect.bbox[2]) / 2,
+  (proiect.bbox[1] + proiect.bbox[3]) / 2,
+];
+
+const poi = (poiJson as unknown as {
+  features: { geometry: { coordinates: [number, number] }; properties: { nume: string; categorie: string } }[];
+}).features
+  .map((f) => ({
+    nume: f.properties.nume,
+    categorie: f.properties.categorie,
+    distanta: km(centru, f.geometry.coordinates),
+  }))
+  .sort((a, b) => a.distanta - b.distanta)
+  .slice(0, 8);
+
+const cifre = [
+  { eticheta: 'Loturi în parcelare', valoare: String(s.total) },
+  { eticheta: 'Disponibile acum', valoare: String(s.disponibile) },
+  { eticheta: 'Suprafețe', valoare: `${s.suprafata_min} - ${s.suprafata_max} m²` },
+  { eticheta: 'Deschidere minimă', valoare: ml(s.front_min) },
+  { eticheta: 'Preț pe m²', valoare: `${s.pret_mp_min} - ${s.pret_mp_max} €` },
+  { eticheta: 'Suprafață vandabilă', valoare: `${s.suprafata_totala_ha} ha` },
+];
+
+const urbanism = [
+  ['Regim', 'Intravilan'],
+  ['Instrument', proiect.urbanism.instrument],
+  ['POT maxim', `${proiect.urbanism.pot}%`],
+  ['CUT maxim', String(proiect.urbanism.cut).replace('.', ',')],
+  ['Regim de înălțime', proiect.urbanism.regim],
+  ['Deschidere minimă la stradă', `${proiect.urbanism.frontMinim} ml`],
+  ['Cadastru', 'Individual, pe fiecare lot'],
+  ['Intabulare', 'Efectuată, fără sarcini'],
+];
+---
+
+<Baza
+  titlu={`${proiect.nume}, ${proiect.localitate} · ${FIRMA.nume}`}
+  descriere={`${s.disponibile} loturi disponibile la ${proiect.nume}, ${proiect.localitate}, ${proiect.judet}. Suprafețe ${s.suprafata_min}-${s.suprafata_max} m², de la ${s.pret_mp_min} €/m² + TVA.`}
+>
+  <AplicaPublicat />
+  <article>
+    <!-- Hero: vedere aeriană reală a amplasamentului -->
+    <header class="hero">
+      <img
+        src={cale(`/imagini/${proiect.slug}.jpg`)}
+        alt={`Vedere aeriană a terenului parcelării ${proiect.nume}, ${proiect.localitate}`}
+        width="1600"
+        height="900"
+        loading="eager"
+        fetchpriority="high"
+      />
+      <div class="hero__text">
+        <p class="hero__loc">{proiect.localitate}, județul {proiect.judet}</p>
+        <h1>{proiect.nume}</h1>
+        <p class="hero__pret cifre">
+          {s.disponibile} loturi disponibile, de la {euro(s.pret_total_min ?? 0)} + TVA
+        </p>
+        <div class="hero__actiuni">
+          <a class="buton buton-primar" href={cale(`/?parcelare=${proiect.slug}`)}>Vezi loturile pe hartă</a>
+          <a class="buton buton-secundar buton--pe-imagine" href={FIRMA.telefonLink}>{FIRMA.telefon}</a>
+        </div>
+      </div>
+    </header>
+
+    <div class="continut">
+      <!-- Cifrele parcelării -->
+      <section class="sectiune" aria-label="Cifrele parcelării">
+        <dl class="cifre-grid cifre">
+          {
+            cifre.map((c) => (
+              <div>
+                <dt>{c.eticheta}</dt>
+                <dd>{c.valoare}</dd>
+              </div>
+            ))
+          }
+        </dl>
+      </section>
+
+      <section class="sectiune">
+        <h2>Despre parcelare</h2>
+        <div class="proza">
+          {proiect.descriere.map((p) => <p>{p}</p>)}
+        </div>
+      </section>
+
+      <section class="sectiune">
+        <h2>Ce utilități ajung la lot</h2>
+        <div class="fisa">
+          {
+            proiect.utilitati.map((u) => (
+              <div>
+                <dt class="fisa__cheie">
+                  {u.tip}
+                  <span class="stare" data-stare={u.stare}>{u.stare}</span>
+                </dt>
+                <dd class="fisa__valoare">{u.detaliu ?? '—'}</dd>
+              </div>
+            ))
+          }
+        </div>
+        <p class="nota">
+          „La lot" înseamnă că racordul e adus până la limita proprietății. „În stradă" înseamnă că
+          rețeaua trece prin fața lotului, iar branșamentul se face separat.
+        </p>
+      </section>
+
+      <section class="sectiune">
+        <h2>Regim urbanistic și acte</h2>
+        <div class="fisa">
+          {
+            urbanism.map(([cheie, valoare]) => (
+              <div>
+                <dt class="fisa__cheie">{cheie}</dt>
+                <dd class="fisa__valoare cifre">{valoare}</dd>
+              </div>
+            ))
+          }
+        </div>
+      </section>
+
+      <!-- Tabelul e alternativa accesibilă la hartă și singurul conținut crawlabil -->
+      <section class="sectiune" id="loturi">
+        <div class="sectiune__cap">
+          <h2>Loturi</h2>
+          <p class="nota">
+            Disponibilitate actualizată {dataRo(proiect.actualizat)}.
+            <span id="semn-publicat" hidden></span>
+          </p>
+        </div>
+
+        <div class="tabel-container">
+          <table>
+            <caption class="sr-only">
+              Loturile din parcelarea {proiect.nume}, cu suprafață, deschidere, preț și stare
+            </caption>
+            <thead>
+              <tr>
+                <th scope="col">Lot</th>
+                <th scope="col" class="la-dreapta">Suprafață</th>
+                <th scope="col" class="la-dreapta">Deschidere</th>
+                <th scope="col" class="la-dreapta">Preț</th>
+                <th scope="col" class="la-dreapta">Preț/m²</th>
+                <th scope="col">Stare</th>
+                <th scope="col"><span class="sr-only">Pe hartă</span></th>
+              </tr>
+            </thead>
+            <tbody>
+              {
+                deVanzare.map((l) => (
+                  <tr data-lot={l.id} data-suprafata={l.suprafata}>
+                    <th scope="row" class="cod"><a href={cale(`/lot/${l.id}`)} data-camp="cod">{l.cod}</a></th>
+                    <td class="la-dreapta cifre">{mp(l.suprafata)}</td>
+                    <td class="la-dreapta cifre">{ml(l.front)}</td>
+                    <td class="la-dreapta cifre" data-camp="pret_total">{euro(l.pret_total)}</td>
+                    <td class="la-dreapta cifre" data-camp="pret_mp">{euro(l.pret_mp)}</td>
+                    <td>
+                      <span class="badge" style={`--c: ${STATUSURI[l.status].culoare}`} data-camp="status">
+                        {STATUSURI[l.status].eticheta}
+                      </span>
+                    </td>
+                    <td>
+                      <a href={cale(`/?parcelare=${proiect.slug}&lot=${l.id}`)}>Pe hartă</a>
+                    </td>
+                  </tr>
+                ))
+              }
+              {
+                restul.map((l) => (
+                  <tr class="rand-inactiv" hidden data-inactiv>
+                    <th scope="row" class="cod"><a href={cale(`/lot/${l.id}`)}>{l.cod}</a></th>
+                    <td class="la-dreapta cifre">{mp(l.suprafata)}</td>
+                    <td class="la-dreapta cifre">{ml(l.front)}</td>
+                    <td class="la-dreapta cifre">{l.status === 'vandut' ? '—' : euro(l.pret_total)}</td>
+                    <td class="la-dreapta cifre">{l.status === 'vandut' ? '—' : euro(l.pret_mp)}</td>
+                    <td>
+                      <span class="badge" style={`--c: ${STATUSURI[l.status].culoare}`}>
+                        {STATUSURI[l.status].eticheta}
+                      </span>
+                    </td>
+                    <td>
+                      <a href={cale(`/?parcelare=${proiect.slug}&lot=${l.id}`)}>Pe hartă</a>
+                    </td>
+                  </tr>
+                ))
+              }
+            </tbody>
+          </table>
+        </div>
+
+        <button type="button" class="buton buton-secundar" id="comuta-inactive" aria-expanded="false">
+          Arată și loturile vândute și cele în pregătire ({restul.length})
+        </button>
+
+        <p class="nota">Prețurile nu conțin TVA. Nu se percepe comision.</p>
+      </section>
+
+      <section class="sectiune">
+        <h2>Unde este</h2>
+        <div class="doua-coloane">
+          <div>
+            <h3 class="subtitlu">Acces</h3>
+            <div class="fisa">
+              {
+                proiect.distante.map((d) => (
+                  <div>
+                    <dt class="fisa__cheie">{d.reper}</dt>
+                    <dd class="fisa__valoare cifre">
+                      {kmRo(d.km)} <span class="nota">· circa {minute(d.km)} min</span>
+                    </dd>
+                  </div>
+                ))
+              }
+            </div>
+          </div>
+          <div>
+            <h3 class="subtitlu">În apropiere</h3>
+            <div class="fisa">
+              {
+                poi.map((p) => (
+                  <div>
+                    <dt class="fisa__cheie">{p.nume}</dt>
+                    <dd class="fisa__valoare cifre">{kmRo(p.distanta)}</dd>
+                  </div>
+                ))
+              }
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {
+        proiect.finantare && (
+          <section class="sectiune">
+            <h2>Plata în rate, direct la dezvoltator</h2>
+            <div class="fisa">
+              <div>
+                <dt class="fisa__cheie">Avans minim</dt>
+                <dd class="fisa__valoare cifre">{proiect.finantare.avans}% din preț</dd>
+              </div>
+              <div>
+                <dt class="fisa__cheie">Perioadă</dt>
+                <dd class="fisa__valoare cifre">până la {proiect.finantare.luni} de rate lunare</dd>
+              </div>
+              <div>
+                <dt class="fisa__cheie">Dobândă</dt>
+                <dd class="fisa__valoare cifre">{proiect.finantare.dobanda}%</dd>
+              </div>
+              <div>
+                <dt class="fisa__cheie">Intabulare</dt>
+                <dd class="fisa__valoare">La semnarea contractului, nu la ultima rată</dd>
+              </div>
+            </div>
+            <p class="nota">
+              <a href={cale("/finantare")}>Cum funcționează plata în rate</a>
+            </p>
+          </section>
+        )
+      }
+
+      <section class="sectiune final">
+        <h2>Vino să vezi terenul</h2>
+        <p class="proza">
+          Vizionările se fac doar cu programare, ca să fim pe teren și să putem arăta bornele
+          lotului care te interesează. Sună-l pe {FIRMA.persoana}, {FIRMA.rol}.
+        </p>
+        <div class="final__actiuni">
+          <a class="buton buton-primar" href={FIRMA.telefonLink}>{FIRMA.telefon}</a>
+          <a class="buton buton-secundar" href={cale("/contact")}>Scrie-ne</a>
+        </div>
+      </section>
+    </div>
+  </article>
+</Baza>
+
+<script>
+  const buton = document.getElementById('comuta-inactive');
+  buton?.addEventListener('click', () => {
+    const ascunse = buton.getAttribute('aria-expanded') !== 'true';
+    buton.setAttribute('aria-expanded', String(ascunse));
+    for (const rand of document.querySelectorAll<HTMLTableRowElement>('[data-inactiv]')) {
+      rand.hidden = !ascunse;
+    }
+    buton.textContent = ascunse
+      ? 'Ascunde loturile vândute și cele în pregătire'
+      : buton.dataset.textInitial ?? buton.textContent;
+  });
+  if (buton) buton.dataset.textInitial = buton.textContent ?? '';
+</script>
+
+<style>
+  .hero {
+    position: relative;
+    isolation: isolate;
+  }
+
+  .hero img {
+    width: 100%;
+    height: clamp(20rem, 52vh, 34rem);
+    object-fit: cover;
+    display: block;
+  }
+
+  .hero::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(to top, rgb(0 0 0 / 0.72) 0%, rgb(0 0 0 / 0.28) 42%, transparent 72%);
+    z-index: 1;
+  }
+
+  .hero__text {
+    position: absolute;
+    inset: auto 0 0 0;
+    z-index: 2;
+    padding: 2rem 1.25rem 2.25rem;
+    max-width: 68rem;
+    margin-inline: auto;
+    color: #fff;
+  }
+
+  @media (min-width: 48rem) {
+    .hero__text {
+      padding-inline: 2rem;
+    }
+  }
+
+  .hero__loc {
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    opacity: 0.86;
+  }
+
+  .hero h1 {
+    font-size: clamp(2rem, 5vw, 3.25rem);
+    margin-top: 0.35rem;
+  }
+
+  .hero__pret {
+    margin-top: 0.5rem;
+    font-size: 1.0625rem;
+    opacity: 0.94;
+  }
+
+  .hero__actiuni {
+    margin-top: 1.25rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.625rem;
+  }
+
+  .buton--pe-imagine {
+    color: #fff;
+    border-color: rgb(255 255 255 / 0.5);
+  }
+
+  .buton--pe-imagine:hover {
+    background: rgb(255 255 255 / 0.14);
+    border-color: #fff;
+  }
+
+  .continut {
+    max-width: 68rem;
+    margin-inline: auto;
+    padding-inline: 1.25rem;
+  }
+
+  @media (min-width: 48rem) {
+    .continut {
+      padding-inline: 2rem;
+    }
+  }
+
+  .sectiune {
+    padding-block: 3.5rem;
+    border-bottom: 1px solid var(--color-hairline);
+  }
+
+  .sectiune:last-child {
+    border-bottom: 0;
+  }
+
+  .sectiune h2 {
+    font-size: clamp(1.5rem, 3vw, 2rem);
+    margin-bottom: 1.5rem;
+  }
+
+  .sectiune__cap {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-bottom: 1.25rem;
+  }
+
+  .sectiune__cap h2 {
+    margin-bottom: 0;
+  }
+
+  .subtitlu {
+    font-family: var(--font-sans);
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: var(--color-ink-2);
+    margin-bottom: 0.75rem;
+  }
+
+  .proza {
+    max-width: 44rem;
+  }
+
+  .proza p + p {
+    margin-top: 1rem;
+  }
+
+  .nota {
+    font-size: 0.8125rem;
+    color: var(--color-ink-3);
+    margin-top: 0.75rem;
+  }
+
+  .nota a {
+    color: var(--color-accent);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+
+  /* Șase cifre: două rânduri de trei, ca să nu rămână o casetă goală la capăt. */
+  .cifre-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1px;
+    background: var(--color-hairline);
+    border: 1px solid var(--color-hairline);
+    border-radius: var(--radius-panou);
+    overflow: hidden;
+  }
+
+  @media (min-width: 40rem) {
+    .cifre-grid {
+      grid-template-columns: repeat(3, 1fr);
+    }
+  }
+
+  .cifre-grid > div {
+    background: var(--color-paper-3);
+    padding: 1.125rem 1.25rem;
+  }
+
+  .cifre-grid dt {
+    font-size: 0.75rem;
+    color: var(--color-ink-2);
+  }
+
+  .cifre-grid dd {
+    font-family: var(--font-mono);
+    font-size: 1.125rem;
+    margin-top: 0.35rem;
+  }
+
+  .fisa__cheie {
+    display: flex;
+    align-items: baseline;
+    gap: 0.625rem;
+    flex-wrap: wrap;
+    font-weight: 500;
+  }
+
+  .fisa__valoare {
+    color: var(--color-ink-2);
+  }
+
+  .stare {
+    font-family: var(--font-mono);
+    font-size: 0.6875rem;
+    padding: 0.1rem 0.4rem;
+    border-radius: var(--radius-mic);
+    background: var(--color-paper-2);
+    color: var(--color-ink-2);
+    white-space: nowrap;
+  }
+
+  .stare[data-stare='la lot'] {
+    background: color-mix(in srgb, var(--color-disponibil) 16%, transparent);
+    color: #1d5c37;
+  }
+
+  .stare[data-stare='proiectat'] {
+    background: color-mix(in srgb, var(--color-pregatire) 16%, transparent);
+    color: #284b57;
+  }
+
+  .doua-coloane {
+    display: grid;
+    gap: 2.5rem;
+  }
+
+  @media (min-width: 48rem) {
+    .doua-coloane {
+      grid-template-columns: 1fr 1fr;
+      gap: 3rem;
+    }
+  }
+
+  /* Peste 200 de loturi într-o singură coloană ar face pagina imposibil de
+     parcurs; tabelul își primește propriul scroll, cu antetul lipit sus. */
+  .tabel-container {
+    overflow: auto;
+    max-height: 32rem;
+    border: 1px solid var(--color-hairline);
+    border-radius: var(--radius-panou);
+    background: var(--color-paper-3);
+    overscroll-behavior: contain;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.875rem;
+  }
+
+  thead th {
+    text-align: left;
+    font-weight: 500;
+    font-size: 0.75rem;
+    color: var(--color-ink-2);
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid var(--color-hairline);
+    white-space: nowrap;
+    position: sticky;
+    top: 0;
+    background: var(--color-paper-3);
+  }
+
+  tbody th,
+  tbody td {
+    padding: 0.6rem 1rem;
+    border-bottom: 1px solid var(--color-hairline);
+    white-space: nowrap;
+  }
+
+  tbody tr:last-child th,
+  tbody tr:last-child td {
+    border-bottom: 0;
+  }
+
+  tbody tr:hover {
+    background: var(--color-paper);
+  }
+
+  .cod {
+    font-family: var(--font-mono);
+    text-align: left;
+    font-weight: 500;
+  }
+
+  .cod a {
+    color: var(--color-ink);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+
+  .la-dreapta {
+    text-align: right;
+  }
+
+  .rand-inactiv {
+    color: var(--color-ink-3);
+  }
+
+  tbody tr[data-modificat='da'] .cod a {
+    text-decoration-style: dotted;
+  }
+
+  tbody tr[data-sters='da'] {
+    opacity: 0.5;
+    text-decoration: line-through;
+  }
+
+  .badge {
+    font-size: 0.75rem;
+    color: var(--c);
+    white-space: nowrap;
+  }
+
+  .badge::before {
+    content: '';
+    display: inline-block;
+    width: 0.5rem;
+    height: 0.5rem;
+    border-radius: 2px;
+    background: var(--c);
+    margin-right: 0.4rem;
+  }
+
+  tbody a {
+    color: var(--color-accent);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+
+  #comuta-inactive {
+    margin-top: 1rem;
+  }
+
+  .final__actiuni {
+    margin-top: 1.5rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.625rem;
+  }
+
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+</style>

@@ -1,0 +1,298 @@
+---
+import { cale } from '../lib/cale';
+import Baza from '../layouts/Baza.astro';
+import proiecteJson from '../data/proiecte.json';
+import type { Proiect } from '../lib/loturi';
+import { euro } from '../lib/loturi';
+import { FIRMA } from '../lib/firma';
+
+const proiecte = proiecteJson as unknown as Proiect[];
+const cuRate = proiecte.filter((p) => p.finantare);
+
+// Exemplu concret, calculat pe cel mai ieftin lot disponibil dintr-o parcelare cu rate.
+const exempluProiect = cuRate[0];
+const pret = exempluProiect?.statistici.pret_total_min ?? 0;
+const avansProcent = exempluProiect?.finantare?.avans ?? 0;
+const luni = exempluProiect?.finantare?.luni ?? 0;
+const avans = Math.round((pret * avansProcent) / 100);
+const rata = luni ? Math.round((pret - avans) / luni) : 0;
+
+const pasi = [
+  {
+    titlu: 'Alegi lotul pe hartă',
+    text: 'Vezi pe hartă ce e liber, la ce preț și cu ce deschidere. Poți trimite linkul lotului direct, are adresă proprie.',
+  },
+  {
+    titlu: 'Rezervăm lotul',
+    text: 'Rezervarea se face pe loc, telefonic sau la birou, și ține lotul 10 zile. Nu costă nimic și nu te obligă la nimic.',
+  },
+  {
+    titlu: 'Semnăm la notar',
+    text: 'Contractul de vânzare cu plata în rate se semnează la notar. Intabularea se face pe numele tău atunci, nu la ultima rată.',
+  },
+  {
+    titlu: 'Plătești ratele lunar',
+    text: 'Fără bancă, fără dosar de credit, fără dobândă. Poți achita anticipat oricând, fără penalizare.',
+  },
+];
+---
+
+<Baza
+  titlu={`Finanțare · ${FIRMA.nume}`}
+  descriere="Plata în rate direct la dezvoltator, fără bancă și fără dobândă, cu intabulare la semnarea contractului."
+>
+  <div class="continut">
+    <header class="antet">
+      <h1>Plata în rate, direct la noi</h1>
+      <p class="intro">
+        Nu lucrăm cu banca. Contractul de vânzare cu plata în rate se semnează la notar, iar
+        intabularea se face pe numele tău în ziua semnării, nu după ultima rată. Asta înseamnă că
+        ești proprietar de la început și poți începe demersurile pentru autorizația de construire.
+      </p>
+    </header>
+
+    <section class="sectiune">
+      <h2>Condiții pe parcelare</h2>
+      <div class="tabel-container">
+        <table>
+          <thead>
+            <tr>
+              <th scope="col">Parcelare</th>
+              <th scope="col" class="la-dreapta">Avans minim</th>
+              <th scope="col" class="la-dreapta">Rate</th>
+              <th scope="col" class="la-dreapta">Dobândă</th>
+            </tr>
+          </thead>
+          <tbody>
+            {
+              proiecte.map((p) => (
+                <tr>
+                  <th scope="row">
+                    <a href={cale(`/parcelari/${p.slug}`)}>
+                      {p.nume}, {p.localitate}
+                    </a>
+                  </th>
+                  <td class="la-dreapta cifre">{p.finantare ? `${p.finantare.avans}%` : '—'}</td>
+                  <td class="la-dreapta cifre">{p.finantare ? `${p.finantare.luni} luni` : '—'}</td>
+                  <td class="la-dreapta cifre">{p.finantare ? `${p.finantare.dobanda}%` : '—'}</td>
+                </tr>
+              ))
+            }
+          </tbody>
+        </table>
+      </div>
+      <p class="nota">
+        La parcelările fără rate, plata se face integral la semnare. Prețurile nu conțin TVA.
+      </p>
+    </section>
+
+    {
+      exempluProiect && (
+        <section class="sectiune">
+          <h2>Un exemplu concret</h2>
+          <p class="proza">
+            Cel mai accesibil lot disponibil acum la {exempluProiect.nume}, {exempluProiect.localitate},
+            costă {euro(pret)} plus TVA.
+          </p>
+          <div class="fisa">
+            <div>
+              <dt class="fisa__cheie">Preț lot</dt>
+              <dd class="fisa__valoare cifre">{euro(pret)} + TVA</dd>
+            </div>
+            <div>
+              <dt class="fisa__cheie">Avans, {avansProcent}%</dt>
+              <dd class="fisa__valoare cifre">{euro(avans)}</dd>
+            </div>
+            <div>
+              <dt class="fisa__cheie">Rest de plată în {luni} de rate</dt>
+              <dd class="fisa__valoare cifre">{euro(pret - avans)}</dd>
+            </div>
+            <div>
+              <dt class="fisa__cheie">Rata lunară</dt>
+              <dd class="fisa__valoare cifre">{euro(rata)}</dd>
+            </div>
+          </div>
+          <p class="nota">
+            Calcul orientativ, fără TVA și fără taxele notariale. Suma exactă se stabilește la
+            semnare, în funcție de lotul ales și de avansul pe care îl dai.
+          </p>
+        </section>
+      )
+    }
+
+    <section class="sectiune">
+      <h2>Cum decurge</h2>
+      <ol class="pasi">
+        {
+          pasi.map((p, i) => (
+            <li>
+              <span class="pasi__nr cifre">{String(i + 1).padStart(2, '0')}</span>
+              <div>
+                <h3>{p.titlu}</h3>
+                <p>{p.text}</p>
+              </div>
+            </li>
+          ))
+        }
+      </ol>
+    </section>
+
+    <section class="sectiune final">
+      <h2>Întrebări despre rate</h2>
+      <p class="proza">
+        Sună-l pe {FIRMA.persoana}, {FIRMA.rol}. Îți spune exact ce avans e nevoie pentru lotul care
+        te interesează și cât ar fi rata.
+      </p>
+      <div class="final__actiuni">
+        <a class="buton buton-primar" href={FIRMA.telefonLink}>{FIRMA.telefon}</a>
+        <a class="buton buton-secundar" href={cale("/")}>Vezi loturile pe hartă</a>
+      </div>
+    </section>
+  </div>
+</Baza>
+
+<style>
+  .continut {
+    max-width: 62rem;
+    margin-inline: auto;
+    padding: 3.5rem 1.25rem 0;
+  }
+
+  @media (min-width: 48rem) {
+    .continut {
+      padding-inline: 2rem;
+    }
+  }
+
+  .antet {
+    max-width: 44rem;
+  }
+
+  .antet h1 {
+    font-size: clamp(2rem, 5vw, 3rem);
+  }
+
+  .intro {
+    margin-top: 1rem;
+    font-size: 1.0625rem;
+    color: var(--color-ink-2);
+  }
+
+  .sectiune {
+    padding-block: 3rem;
+    border-top: 1px solid var(--color-hairline);
+    margin-top: 3rem;
+  }
+
+  .sectiune:first-of-type {
+    margin-top: 2.5rem;
+  }
+
+  .sectiune h2 {
+    font-size: clamp(1.5rem, 3vw, 2rem);
+    margin-bottom: 1.5rem;
+  }
+
+  .proza {
+    max-width: 44rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .nota {
+    font-size: 0.8125rem;
+    color: var(--color-ink-3);
+    margin-top: 0.75rem;
+    max-width: 44rem;
+  }
+
+  .fisa__cheie {
+    font-weight: 500;
+  }
+
+  .fisa__valoare {
+    color: var(--color-ink-2);
+  }
+
+  .tabel-container {
+    overflow-x: auto;
+    border: 1px solid var(--color-hairline);
+    border-radius: var(--radius-panou);
+    background: var(--color-paper-3);
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9375rem;
+  }
+
+  thead th {
+    text-align: left;
+    font-weight: 500;
+    font-size: 0.75rem;
+    color: var(--color-ink-2);
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid var(--color-hairline);
+    white-space: nowrap;
+  }
+
+  tbody th,
+  tbody td {
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid var(--color-hairline);
+    text-align: left;
+    font-weight: 400;
+  }
+
+  tbody tr:last-child th,
+  tbody tr:last-child td {
+    border-bottom: 0;
+  }
+
+  tbody a {
+    color: var(--color-ink);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+
+  .la-dreapta {
+    text-align: right;
+  }
+
+  .pasi {
+    display: grid;
+    gap: 1.75rem;
+    max-width: 44rem;
+  }
+
+  .pasi li {
+    display: grid;
+    grid-template-columns: 2.5rem 1fr;
+    gap: 1rem;
+    align-items: start;
+  }
+
+  .pasi__nr {
+    font-family: var(--font-mono);
+    font-size: 0.875rem;
+    color: var(--color-ink-3);
+    padding-top: 0.15rem;
+  }
+
+  .pasi h3 {
+    font-family: var(--font-sans);
+    font-size: 1rem;
+    font-weight: 600;
+  }
+
+  .pasi p {
+    margin-top: 0.25rem;
+    color: var(--color-ink-2);
+  }
+
+  .final__actiuni {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.625rem;
+  }
+</style>

@@ -1,0 +1,715 @@
+---
+import { cale } from '../../lib/cale';
+import Baza from '../../layouts/Baza.astro';
+import proiecteJson from '../../data/proiecte.json';
+import loturiJson from '../../data/loturi.json';
+import poiJson from '../../data/poi.json';
+import { STATUSURI, euro, mp, ml, dataRo } from '../../lib/loturi';
+import type { Proiect, ProprietatiLot } from '../../lib/loturi';
+import { cadruImagine, laPixeli, LATIME_IMAGINE, INALTIME_IMAGINE } from '../../lib/imagine.js';
+import { edificabilLot, potentialConstruire, silueta, orientare, RETRAGERI } from '../../lib/parcelare.js';
+import { km, minute, kmRo } from '../../lib/distante';
+import { FIRMA } from '../../lib/firma';
+import AplicaPublicat from '../../components/AplicaPublicat.astro';
+
+interface Lot {
+  properties: ProprietatiLot;
+  geometry: { coordinates: [number, number][][] };
+}
+
+export function getStaticPaths() {
+  const proiecte = proiecteJson as unknown as Proiect[];
+  const loturi = (loturiJson as unknown as { features: Lot[] }).features;
+  const dupaSlug = new Map(proiecte.map((p) => [p.slug, p]));
+
+  return loturi.map((f) => {
+    const p = dupaSlug.get(f.properties.proiect)!;
+    const fratii = loturi.filter((x) => x.properties.proiect === p.slug);
+    const idx = fratii.findIndex((x) => x.properties.id === f.properties.id);
+    return {
+      params: { id: f.properties.id },
+      props: {
+        lot: f,
+        proiect: p,
+        vecini: [fratii[idx - 1], fratii[idx + 1], fratii[idx + 2]]
+          .filter(Boolean)
+          .map((x) => x.properties),
+      },
+    };
+  });
+}
+
+interface Props {
+  lot: Lot;
+  proiect: Proiect;
+  vecini: ProprietatiLot[];
+}
+
+const { lot, proiect, vecini } = Astro.props;
+const p = lot.properties;
+const cfg = STATUSURI[p.status];
+
+// Conturul lotului, desenat peste vederea aeriană a parcelării.
+const cadru = cadruImagine(proiect.bbox);
+const puncte = lot.geometry.coordinates[0].map((c) => laPixeli(cadru, c).join(',')).join(' ');
+const centruLot = lot.geometry.coordinates[0]
+  .slice(0, -1)
+  .reduce(
+    (a, c, _i, arr) => [a[0] + c[0] / arr.length, a[1] + c[1] / arr.length],
+    [0, 0],
+  ) as [number, number];
+const lupa = laPixeli(cadru, centruLot);
+// Decupaj în jurul lotului: aceeași imagine, dar mărită și centrată pe el, ca
+// să se vadă lotul și vecinii lui, nu un punct pierdut într-un câmp.
+const ZOOM = 4.2;
+const centruProcent = [
+  Math.min(96, Math.max(4, (lupa[0] / LATIME_IMAGINE) * 100)),
+  Math.min(94, Math.max(6, (lupa[1] / INALTIME_IMAGINE) * 100)),
+];
+
+const poi = (poiJson as unknown as {
+  features: { geometry: { coordinates: [number, number] }; properties: { nume: string } }[];
+}).features
+  .map((f) => ({ nume: f.properties.nume, distanta: km(centruLot, f.geometry.coordinates) }))
+  .sort((a, b) => a.distanta - b.distanta)
+  .slice(0, 5);
+
+const specificatii: [string, string][] = [
+  ['Suprafață', mp(p.suprafata)],
+  ['Deschidere la stradă', ml(p.front)],
+  ['Formă', p.laturi > 4 ? `poligon cu ${p.laturi} laturi` : 'patrulater'],
+  ['Preț pe m²', `${euro(p.pret_mp)}/m²`],
+  ['Regim', 'Intravilan'],
+  ['POT maxim', `${proiect.urbanism.pot}%`],
+  ['CUT maxim', String(proiect.urbanism.cut).replace('.', ',')],
+  ['Regim de înălțime', proiect.urbanism.regim],
+  ['Cadastru', 'Individual, intabulat, fără sarcini'],
+];
+
+// Ce se poate construi pe lotul ăsta, calculat din retrageri și din POT/CUT.
+const azimutSpreLot = p.sir === 0 ? (proiect.azimutNormala + 180) % 360 : proiect.azimutNormala;
+const edificabil = edificabilLot(lot.geometry.coordinates[0], azimutSpreLot);
+const construire = potentialConstruire(p.suprafata, proiect.urbanism, edificabil?.suprafata ?? null);
+const casa = silueta(edificabil, construire.amprenta);
+const busola = orientare(azimutSpreLot);
+const puncteEdificabil = edificabil
+  ? edificabil.inel.map((c) => laPixeli(cadru, c).join(',')).join(' ')
+  : '';
+const puncteCasa = casa ? casa.inel.map((c) => laPixeli(cadru, c).join(',')).join(' ') : '';
+
+const rata = proiect.finantare
+  ? Math.round((p.pret_total * (1 - proiect.finantare.avans / 100)) / proiect.finantare.luni)
+  : null;
+---
+
+<Baza
+  titlu={`Lotul ${p.cod}, ${proiect.nume} · ${FIRMA.nume}`}
+  descriere={`Lot de ${p.suprafata} m² la ${proiect.nume}, ${proiect.localitate}. ${euro(p.pret_total)} plus TVA, ${euro(p.pret_mp)} pe m². ${cfg.eticheta}.`}
+>
+  <AplicaPublicat />
+  <article class="lot" data-lot={p.id} data-suprafata={p.suprafata}>
+    <nav class="firimituri" aria-label="Navigare secundară">
+      <a href={cale("/parcelari")}>Parcelări</a>
+      <span aria-hidden="true">·</span>
+      <a href={cale(`/parcelari/${proiect.slug}`)}>{proiect.nume}</a>
+      <span aria-hidden="true">·</span>
+      <span aria-current="page">Lotul {p.cod}</span>
+    </nav>
+
+    <header class="cap">
+      <div class="cap__text">
+        <p class="cap__loc">{proiect.nume}, {proiect.localitate}, județul {proiect.judet}</p>
+        <h1>Lotul {p.cod}</h1>
+        <p class="stare" style={`--c: ${cfg.culoare}`} data-camp="status">{cfg.eticheta}</p>
+        <p id="semn-publicat" class="semn-publicat" hidden></p>
+
+        <p class="pret cifre"><span data-camp="pret_total">{euro(p.pret_total)}</span><span class="pret__tva"> + TVA</span></p>
+        <p class="pret__mp cifre"><span data-camp="pret_mp">{euro(p.pret_mp)}/m²</span>, {mp(p.suprafata)}</p>
+
+        {p.observatii && <p class="nota-lot">{p.observatii}</p>}
+
+        <div class="cap__actiuni">
+          <a class="buton buton-primar" href={FIRMA.telefonLink}>Sună pentru lotul {p.cod}</a>
+          <a class="buton buton-secundar" href={cale(`/?parcelare=${proiect.slug}&lot=${p.id}`)}>
+            Vezi pe hartă
+          </a>
+        </div>
+      </div>
+
+      <div class="vederi">
+        <figure class="plan">
+          <div
+            class="plan__imagine plan__imagine--apropiat"
+            style={`--zoom: ${ZOOM}; --cx: ${centruProcent[0]}%; --cy: ${centruProcent[1]}%`}
+          >
+            <div class="plan__strat">
+              <img
+                src={cale(`/imagini/${proiect.slug}-mare.jpg`)}
+                alt={`Vedere aeriană apropiată a lotului ${p.cod} din parcelarea ${proiect.nume}`}
+                width={LATIME_IMAGINE}
+                height={INALTIME_IMAGINE}
+                loading="eager"
+                fetchpriority="high"
+              />
+              <svg
+                class="plan__contur"
+                viewBox={`0 0 ${LATIME_IMAGINE} ${INALTIME_IMAGINE}`}
+                preserveAspectRatio="none"
+                aria-hidden="true"
+              >
+                <polygon points={puncte} fill="rgba(47,143,87,0.3)" stroke="#ffffff" stroke-width="1.6" />
+                {puncteEdificabil && (
+                  <polygon
+                    points={puncteEdificabil}
+                    fill="none"
+                    stroke="rgba(255,255,255,0.75)"
+                    stroke-width="0.9"
+                    stroke-dasharray="4 3"
+                  />
+                )}
+                {puncteCasa && (
+                  <polygon points={puncteCasa} fill="rgba(21,24,26,0.62)" stroke="#ffffff" stroke-width="1" />
+                )}
+              </svg>
+            </div>
+          </div>
+          <figcaption>
+            Lotul {p.cod}, cu linia punctată a retragerilor obligatorii și silueta casei maxime
+            care încape între ele.
+          </figcaption>
+        </figure>
+
+        <figure class="plan plan--mic">
+          <div class="plan__imagine">
+            <img
+              src={cale(`/imagini/${proiect.slug}.jpg`)}
+              alt={`Poziția lotului ${p.cod} în ansamblul parcelării ${proiect.nume}`}
+              width={LATIME_IMAGINE}
+              height={INALTIME_IMAGINE}
+              loading="lazy"
+            />
+            <svg
+              class="plan__contur"
+              viewBox={`0 0 ${LATIME_IMAGINE} ${INALTIME_IMAGINE}`}
+              preserveAspectRatio="none"
+              aria-hidden="true"
+            >
+              <defs>
+                <mask id="gaura">
+                  <rect width={LATIME_IMAGINE} height={INALTIME_IMAGINE} fill="white" />
+                  <polygon points={puncte} fill="black" />
+                </mask>
+              </defs>
+              <rect width={LATIME_IMAGINE} height={INALTIME_IMAGINE} fill="rgba(10,14,16,0.5)" mask="url(#gaura)" />
+              <circle cx={lupa[0]} cy={lupa[1]} r="120" fill="none" stroke="#ffffff" stroke-width="5" />
+            </svg>
+          </div>
+          <figcaption>Unde se află în parcelare.</figcaption>
+        </figure>
+      </div>
+    </header>
+
+    <div class="continut">
+      <section class="sectiune">
+        <h2>Specificații</h2>
+        <div class="fisa">
+          {
+            specificatii.map(([cheie, valoare]) => (
+              <div>
+                <dt class="fisa__cheie">{cheie}</dt>
+                <dd class="fisa__valoare cifre">{valoare}</dd>
+              </div>
+            ))
+          }
+        </div>
+        <p class="nota">
+          Prețul nu conține TVA. Disponibilitate actualizată {dataRo(p.actualizat)}. Limitele
+          afișate au caracter informativ și nu înlocuiesc măsurătoarea cadastrală.
+        </p>
+      </section>
+
+      <section class="sectiune">
+        <h2>Ce poți construi aici</h2>
+        <p class="proza deschidere">
+          {casa
+            ? `Pe lotul ăsta încape o casă de până la ${String(casa.latime).replace('.', ',')} pe ${String(casa.adancime).replace('.', ',')} metri, adică ${construire.amprenta} m² la sol.`
+            : `Lotul e prea îngust pentru retragerile obligatorii de la ${proiect.nume}.`}
+          {construire.leaga === 'POT'
+            ? ' Limita o dă procentul de ocupare, nu forma lotului.'
+            : ' Limita o dau retragerile, nu procentul de ocupare: lotul e îngust.'}
+        </p>
+        <div class="fisa">
+          <div>
+            <dt class="fisa__cheie">Amprentă maximă la sol</dt>
+            <dd class="fisa__valoare cifre">
+              {construire.amprenta} m²
+              <span class="nota">
+                · din POT {proiect.urbanism.pot}% ar ieși {construire.dinPot} m², între retrageri
+                încap {edificabil ? edificabil.suprafata : 0} m²
+              </span>
+            </dd>
+          </div>
+          {
+            edificabil && (
+              <div>
+                <dt class="fisa__cheie">Lățime construibilă</dt>
+                <dd class="fisa__valoare cifre">
+                  {String(edificabil.latime).replace('.', ',')} m
+                  <span class="nota">
+                    · deschidere {ml(p.front)} minus {RETRAGERI.lateral} m de fiecare parte
+                  </span>
+                </dd>
+              </div>
+            )
+          }
+          {
+            edificabil && (
+              <div>
+                <dt class="fisa__cheie">Adâncime construibilă</dt>
+                <dd class="fisa__valoare cifre">{String(edificabil.adancime).replace('.', ',')} m</dd>
+              </div>
+            )
+          }
+          <div>
+            <dt class="fisa__cheie">Suprafață desfășurată maximă</dt>
+            <dd class="fisa__valoare cifre">
+              {construire.desfasurata} m²
+              <span class="nota">· din CUT {String(proiect.urbanism.cut).replace('.', ',')}</span>
+            </dd>
+          </div>
+          <div>
+            <dt class="fisa__cheie">Retrageri obligatorii</dt>
+            <dd class="fisa__valoare cifre">
+              {RETRAGERI.fata} m față, {RETRAGERI.lateral} m lateral, {RETRAGERI.spate} m spate
+            </dd>
+          </div>
+          <div>
+            <dt class="fisa__cheie">Regim de înălțime</dt>
+            <dd class="fisa__valoare cifre">{proiect.urbanism.regim}</dd>
+          </div>
+          <div>
+            <dt class="fisa__cheie">Orientare</dt>
+            <dd class="fisa__valoare">
+              deschidere la {busola.strada}, curtea din spate la {busola.curte}
+              {busola.comentariu && <span class="nota">· {busola.comentariu}</span>}
+            </dd>
+          </div>
+        </div>
+        <p class="nota">
+          Calcul orientativ, pe retragerile uzuale pentru locuințe individuale în Ilfov. Valorile
+          exacte se iau din certificatul de urbanism eliberat de primărie pentru lotul tău.
+        </p>
+      </section>
+
+      <section class="sectiune">
+        <h2>Despre lot</h2>
+        <div class="proza">
+          <p>
+            Lotul {p.cod} are {mp(p.suprafata)} și o deschidere de {ml(p.front)} la drumul
+            interior al parcelării {proiect.nume}. {p.laturi > 4
+              ? `Are o formă neregulată, cu ${p.laturi} laturi, pentru că urmează hotarul real al terenului.`
+              : 'Are formă regulată de patrulater.'}
+          </p>
+          <p>{proiect.descriere[0]}</p>
+          <p>
+            Regimul urbanistic permite {proiect.urbanism.regim}, cu POT maxim de{' '}
+            {proiect.urbanism.pot}% și CUT maxim de {String(proiect.urbanism.cut).replace('.', ',')}.
+            Lotul e cadastrat individual și intabulat, fără sarcini.
+          </p>
+        </div>
+      </section>
+
+      <section class="sectiune">
+        <h2>Ce utilități ajung la lot</h2>
+        <div class="fisa">
+          {
+            proiect.utilitati.map((u) => (
+              <div>
+                <dt class="fisa__cheie">
+                  {u.tip}
+                  <span class="badge-stare" data-stare={u.stare}>{u.stare}</span>
+                </dt>
+                <dd class="fisa__valoare">{u.detaliu ?? '—'}</dd>
+              </div>
+            ))
+          }
+        </div>
+      </section>
+
+      {
+        proiect.finantare && rata && (
+          <section class="sectiune">
+            <h2>Cât ar fi rata</h2>
+            <div class="fisa">
+              <div>
+                <dt class="fisa__cheie">Avans, {proiect.finantare.avans}%</dt>
+                <dd class="fisa__valoare cifre">
+                  {euro(Math.round((p.pret_total * proiect.finantare.avans) / 100))}
+                </dd>
+              </div>
+              <div>
+                <dt class="fisa__cheie">{proiect.finantare.luni} de rate lunare</dt>
+                <dd class="fisa__valoare cifre">{euro(rata)} pe lună</dd>
+              </div>
+              <div>
+                <dt class="fisa__cheie">Dobândă</dt>
+                <dd class="fisa__valoare cifre">{proiect.finantare.dobanda}%</dd>
+              </div>
+            </div>
+            <p class="nota">
+              Calcul orientativ, fără TVA și fără taxele notariale.{' '}
+              <a href={cale("/finantare")}>Cum funcționează plata în rate</a>
+            </p>
+          </section>
+        )
+      }
+
+      <section class="sectiune">
+        <h2>În apropiere</h2>
+        <div class="fisa">
+          {
+            poi.map((x) => (
+              <div>
+                <dt class="fisa__cheie">{x.nume}</dt>
+                <dd class="fisa__valoare cifre">
+                  {kmRo(x.distanta)} <span class="nota">· circa {minute(x.distanta)} min</span>
+                </dd>
+              </div>
+            ))
+          }
+        </div>
+      </section>
+
+      {
+        vecini.length > 0 && (
+          <section class="sectiune">
+            <h2>Loturi alăturate</h2>
+            <ul class="vecini">
+              {vecini.map((v) => (
+                <li>
+                  <a href={cale(`/lot/${v.id}`)}>
+                    <span class="vecini__cod">{v.cod}</span>
+                    <span class="vecini__date cifre">
+                      {mp(v.suprafata)} · {euro(v.pret_total)}
+                    </span>
+                    <span class="vecini__stare" style={`--c: ${STATUSURI[v.status].culoare}`}>
+                      {STATUSURI[v.status].eticheta}
+                    </span>
+                  </a>
+                </li>
+              ))}
+            </ul>
+            <p class="nota">
+              <a href={cale(`/parcelari/${proiect.slug}#loturi`)}>Vezi toate loturile din {proiect.nume}</a>
+            </p>
+          </section>
+        )
+      }
+
+      <section class="sectiune final">
+        <h2>Vino să vezi lotul</h2>
+        <p class="proza">
+          Vizionările se fac doar cu programare. Mergem pe teren și îți arătăm bornele lotului{' '}
+          {p.cod}. Sună-l pe {FIRMA.persoana}, {FIRMA.rol}.
+        </p>
+        <div class="final__actiuni">
+          <a class="buton buton-primar" href={FIRMA.telefonLink}>{FIRMA.telefon}</a>
+          <a class="buton buton-secundar" href={cale(`/contact?parcelare=${proiect.slug}&lot=${p.id}`)}>
+            Scrie-ne
+          </a>
+        </div>
+      </section>
+    </div>
+  </article>
+</Baza>
+
+<style>
+  .lot {
+    max-width: 72rem;
+    margin-inline: auto;
+    padding: 1.5rem 1.25rem 0;
+  }
+
+  @media (min-width: 48rem) {
+    .lot {
+      padding-inline: 2rem;
+    }
+  }
+
+  .firimituri {
+    font-size: 0.8125rem;
+    color: var(--color-ink-3);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  .firimituri a {
+    color: var(--color-ink-2);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+
+  .cap {
+    margin-top: 1.5rem;
+    display: grid;
+    gap: 2rem;
+  }
+
+  @media (min-width: 60rem) {
+    .cap {
+      grid-template-columns: 20rem 1fr;
+      gap: 3rem;
+      align-items: start;
+    }
+  }
+
+  .cap__loc {
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    color: var(--color-ink-2);
+  }
+
+  .cap h1 {
+    font-size: clamp(2.25rem, 6vw, 3.25rem);
+    margin-top: 0.35rem;
+  }
+
+  .stare {
+    display: inline-block;
+    margin-top: 0.75rem;
+    font-size: 0.75rem;
+    font-weight: 500;
+    padding: 0.2rem 0.55rem;
+    border-radius: var(--radius-mic);
+    color: var(--c);
+    background: color-mix(in srgb, var(--c) 12%, transparent);
+    border: 1px solid color-mix(in srgb, var(--c) 34%, transparent);
+  }
+
+  .pret {
+    margin-top: 1.25rem;
+    font-family: var(--font-mono);
+    font-size: 1.875rem;
+    line-height: 1.1;
+  }
+
+  .pret .pret__tva {
+    font-size: 0.9375rem;
+    color: var(--color-ink-3);
+  }
+
+  .semn-publicat {
+    margin-top: 0.5rem;
+    font-size: 0.75rem;
+    color: var(--color-accent);
+  }
+
+  [data-sters='da'] .pret {
+    text-decoration: line-through;
+    color: var(--color-ink-3);
+  }
+
+  .pret__mp {
+    margin-top: 0.25rem;
+    font-family: var(--font-mono);
+    font-size: 0.875rem;
+    color: var(--color-ink-2);
+  }
+
+  .nota-lot {
+    margin-top: 0.875rem;
+    font-size: 0.875rem;
+    color: var(--color-ink-2);
+    border-left: 2px solid var(--color-hairline);
+    padding-left: 0.75rem;
+  }
+
+  .cap__actiuni {
+    margin-top: 1.5rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.625rem;
+  }
+
+  .vederi {
+    display: grid;
+    gap: 1rem;
+  }
+
+  @media (min-width: 40rem) {
+    .vederi {
+      grid-template-columns: 1fr 13rem;
+      align-items: start;
+    }
+  }
+
+  .plan {
+    margin: 0;
+  }
+
+  .plan__imagine--apropiat {
+    overflow: hidden;
+  }
+
+  /* Decupajul: aceeași imagine, mărită și ancorată pe lot. */
+  .plan__imagine--apropiat .plan__strat {
+    position: absolute;
+    inset: 0;
+    transform: scale(var(--zoom));
+    transform-origin: var(--cx) var(--cy);
+  }
+
+  .plan__imagine--apropiat img {
+    image-rendering: auto;
+  }
+
+  .plan__imagine {
+    position: relative;
+    border-radius: var(--radius-panou);
+    overflow: hidden;
+    border: 1px solid var(--color-hairline);
+    aspect-ratio: 16 / 9;
+  }
+
+  .plan__imagine img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+
+  .plan__contur {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+  }
+
+  .plan figcaption {
+    margin-top: 0.625rem;
+    font-size: 0.75rem;
+    color: var(--color-ink-3);
+  }
+
+  .plan--mic .plan__imagine {
+    aspect-ratio: 16 / 9;
+  }
+
+  .continut {
+    margin-top: 1rem;
+  }
+
+  .sectiune {
+    padding-block: 2.75rem;
+    border-top: 1px solid var(--color-hairline);
+  }
+
+  .sectiune h2 {
+    font-size: clamp(1.375rem, 3vw, 1.75rem);
+    margin-bottom: 1.25rem;
+  }
+
+  .proza {
+    max-width: 44rem;
+  }
+
+  .proza p + p {
+    margin-top: 1rem;
+  }
+
+  .deschidere {
+    font-size: 1.0625rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .fisa__valoare .nota {
+    display: block;
+    margin-top: 0.15rem;
+    font-family: var(--font-sans);
+  }
+
+  .fisa__cheie {
+    display: flex;
+    align-items: baseline;
+    gap: 0.625rem;
+    flex-wrap: wrap;
+    font-weight: 500;
+  }
+
+  .fisa__valoare {
+    color: var(--color-ink-2);
+  }
+
+  .badge-stare {
+    font-family: var(--font-mono);
+    font-size: 0.6875rem;
+    padding: 0.1rem 0.4rem;
+    border-radius: var(--radius-mic);
+    background: var(--color-paper-2);
+    color: var(--color-ink-2);
+    white-space: nowrap;
+  }
+
+  .nota {
+    font-size: 0.8125rem;
+    color: var(--color-ink-3);
+    margin-top: 0.875rem;
+    max-width: 44rem;
+  }
+
+  .nota a {
+    color: var(--color-accent);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+
+  .vecini {
+    display: grid;
+    gap: 1px;
+    background: var(--color-hairline);
+    border: 1px solid var(--color-hairline);
+    border-radius: var(--radius-panou);
+    overflow: hidden;
+    max-width: 40rem;
+  }
+
+  .vecini a {
+    display: flex;
+    align-items: baseline;
+    gap: 1rem;
+    padding: 0.875rem 1rem;
+    background: var(--color-paper-3);
+    transition: background-color 150ms ease-out;
+  }
+
+  .vecini a:hover {
+    background: var(--color-paper);
+  }
+
+  .vecini__cod {
+    font-family: var(--font-mono);
+    font-weight: 500;
+    min-width: 3rem;
+  }
+
+  .vecini__date {
+    flex: 1;
+    font-family: var(--font-mono);
+    font-size: 0.875rem;
+    color: var(--color-ink-2);
+  }
+
+  .vecini__stare {
+    font-size: 0.75rem;
+    color: var(--c);
+    white-space: nowrap;
+  }
+
+  .final__actiuni {
+    margin-top: 1.5rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.625rem;
+  }
+</style>

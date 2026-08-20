@@ -1,0 +1,69 @@
+---
+import { cale } from '../lib/cale';
+import { FIRMA } from '../lib/firma';
+import proiecte from '../data/proiecte.json';
+import type { Proiect } from '../lib/loturi';
+
+const lista = proiecte as unknown as Proiect[];
+const an = 2026;
+---
+
+<footer class="mt-24 border-t border-hairline bg-paper-2">
+  <div class="mx-auto grid max-w-6xl gap-10 px-5 py-14 sm:grid-cols-2 lg:grid-cols-4">
+    <div>
+      <p class="font-serif text-lg">{FIRMA.nume}</p>
+      <p class="mt-2 max-w-xs text-[0.9375rem] text-ink-2">{FIRMA.descriere}</p>
+    </div>
+
+    <div>
+      <p class="eticheta mb-3">Parcelări</p>
+      <ul class="space-y-2 text-[0.9375rem]">
+        {
+          lista.map((p) => (
+            <li>
+              <a href={cale(`/parcelari/${p.slug}`)} class="text-ink-2 hover:text-ink">
+                {p.nume}, {p.localitate}
+              </a>
+            </li>
+          ))
+        }
+      </ul>
+    </div>
+
+    <div>
+      <p class="eticheta mb-3">Pagini</p>
+      <ul class="space-y-2 text-[0.9375rem]">
+        <li><a href={cale("/")} class="text-ink-2 hover:text-ink">Harta loturilor</a></li>
+        <li><a href={cale("/parcelari")} class="text-ink-2 hover:text-ink">Toate parcelările</a></li>
+        <li><a href={cale("/finantare")} class="text-ink-2 hover:text-ink">Finanțare</a></li>
+        <li><a href={cale("/contact")} class="text-ink-2 hover:text-ink">Contact</a></li>
+        <li><a href={cale("/demo-admin")} class="text-ink-2 hover:text-ink">Panou de administrare</a></li>
+      </ul>
+    </div>
+
+    <div>
+      <p class="eticheta mb-3">Contact</p>
+      <ul class="space-y-2 text-[0.9375rem] text-ink-2">
+        <li>
+          <a href={FIRMA.telefonLink} class="text-ink">{FIRMA.telefon}</a>
+          <span class="block text-[0.8125rem]">{FIRMA.persoana}, {FIRMA.rol}</span>
+        </li>
+        <li>{FIRMA.email}</li>
+        <li>{FIRMA.adresa}</li>
+        <li>{FIRMA.program}</li>
+      </ul>
+    </div>
+  </div>
+
+  <div
+    class="border-t border-hairline px-5 py-5 text-[0.8125rem] text-ink-3"
+  >
+    <div class="mx-auto flex max-w-6xl flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+      <p>© {an} {FIRMA.nume}. Prețurile afișate nu conțin TVA.</p>
+      <p>
+        Demonstrație realizată de <span class="text-ink-2">RTR Tech Solutions</span>. Parcelare,
+        prețuri și disponibilitate fictive.
+      </p>
+    </div>
+  </div>
+</footer>

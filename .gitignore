@@ -1,0 +1,15 @@
+node_modules/
+dist/
+.astro/
+.DS_Store
+.env
+.env.*
+
+# Capturi de lucru și ieșiri de unelte: se refac oricând, nu au ce căuta în repo.
+.playwright-mcp/
+graphify-out/
+_research/audit/
+_research/demo/
+
+# Scripturile de workflow salvate local de unelte, nu de proiect.
+.claude/
