@@ -1,5 +1,8 @@
 ---
 import { cale } from '../../lib/cale';
+import Testimoniale from '../../components/Testimoniale.astro';
+import testimonialeJson from '../../data/testimoniale.json';
+import type { Testimonial } from '../../lib/testimoniale';
 import Baza from '../../layouts/Baza.astro';
 import proiecteJson from '../../data/proiecte.json';
 import { euro, ml, dataRo } from '../../lib/loturi';
@@ -9,6 +12,7 @@ import { FIRMA } from '../../lib/firma';
 const proiecte = proiecteJson as unknown as Proiect[];
 const totalDisponibile = proiecte.reduce((n, p) => n + p.statistici.disponibile, 0);
 const totalLoturi = proiecte.reduce((n, p) => n + p.statistici.total, 0);
+const testimoniale = testimonialeJson as unknown as Testimonial[];
 ---
 
 <Baza
@@ -79,6 +83,8 @@ const totalLoturi = proiecte.reduce((n, p) => n + p.statistici.total, 0);
         ))
       }
     </ul>
+
+    <Testimoniale testimoniale={testimoniale} proiecte={proiecte} />
   </div>
 </Baza>
 

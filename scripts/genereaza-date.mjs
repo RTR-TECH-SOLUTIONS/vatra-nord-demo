@@ -17,6 +17,7 @@ import { fileURLToPath } from 'node:url';
 import { genereazaParcelare, proiectieLocala } from '../src/lib/parcelare.js';
 import { PARCELARI } from './situri.mjs';
 import { PROPRIETATI } from './proprietati.mjs';
+import { TESTIMONIALE } from './testimoniale.mjs';
 import { descarcaObstacole } from './obstacole.mjs';
 
 const AICI = dirname(fileURLToPath(import.meta.url));
@@ -305,6 +306,10 @@ writeFileSync(join(DEST, 'poi.json'), colectiePoi);
 const colectiePinuri = JSON.stringify(PROPRIETATI, null, 1);
 writeFileSync(join(DEST_PUBLIC, 'pinuri.json'), colectiePinuri);
 writeFileSync(join(DEST, 'pinuri.json'), colectiePinuri);
+
+const colectieTestimoniale = JSON.stringify(TESTIMONIALE, null, 1);
+writeFileSync(join(DEST_PUBLIC, 'testimoniale.json'), colectieTestimoniale);
+writeFileSync(join(DEST, 'testimoniale.json'), colectieTestimoniale);
 
 for (const r of rezultate) {
   const s = r.proiect.statistici;
