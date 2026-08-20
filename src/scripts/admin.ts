@@ -19,6 +19,7 @@ import type { Proiect, ProprietatiLot, StatusLot } from '../lib/loturi';
 import { citeste, scrie, goleste, numaraModificari, type Depozit, type Modificare } from '../lib/depozit';
 import { styleBasemap, type ModBasemap } from '../lib/basemap';
 import { elementPin, marcaDinNume, ORDINE_STARI, STARI_PIN, type Pin, type StarePin } from '../lib/pin';
+import type { Testimonial } from '../lib/testimoniale';
 
 setWorkerUrl(cale('/maplibre/maplibre-gl-worker.mjs'));
 
@@ -80,6 +81,12 @@ const marcherePin = new Map<string, Marker>();
  * teren care se cheamă Livada Periș.
  */
 const marcaDeMana = new Set<string>();
+
+/** Testimonialele: aceeași regulă ca la pinuri, lista se publică în bloc. */
+let testimoniale: Testimonial[] = [];
+let bazaTestimoniale: Testimonial[] = [];
+let testimonialSelectat: string | null = null;
+let contorTestimonial = 0;
 
 let teren: Inel | null = null;
 let obstacole: GeoJSON.Feature[] = [];
@@ -192,6 +199,11 @@ async function incarca() {
   contorNou = d.adaugate.length;
   const rPinuri = await fetch(cale('/date/pinuri.json'));
   bazaPinuri = rPinuri.ok ? ((await rPinuri.json()) as Pin[]) : [];
+  const rTestimoniale = await fetch(cale('/date/testimoniale.json'));
+  bazaTestimoniale = rTestimoniale.ok ? ((await rTestimoniale.json()) as Testimonial[]) : [];
+  testimoniale = (d.testimoniale ?? bazaTestimoniale).map((t) => ({ ...t }));
+  contorTestimonial = testimoniale.length;
+  testimonialSelectat = null;
   pinuri = (d.pinuri ?? bazaPinuri).map((x) => ({ ...x }));
   for (const x of pinuri) marcaDeMana.add(x.id);
   contorPin = pinuri.length;
@@ -225,7 +237,15 @@ function calculeazaDepozit(): Omit<Depozit, 'versiune' | 'actualizat'> {
   // atunci direct build-ul, iar depozitul nu poartă o copie inutilă.
   const pinuriDePublicat =
     JSON.stringify(pinuri) === JSON.stringify(bazaPinuri) ? null : pinuri;
-  return { modificari, adaugate, sterse, pinuri: pinuriDePublicat };
+  const testimonialeDePublicat =
+    JSON.stringify(testimoniale) === JSON.stringify(bazaTestimoniale) ? null : testimoniale;
+  return {
+    modificari,
+    adaugate,
+    sterse,
+    pinuri: pinuriDePublicat,
+    testimoniale: testimonialeDePublicat,
+  };
 }
 
 function publica() {
@@ -368,8 +388,195 @@ harta.on('load', () => {
   });
 
   legaFormularPin();
+  legaTestimoniale();
   incarca();
 });
+
+/* --------------------------------------------------------- testimoniale */
+
+function testimonialDupaId(id: string | null) {
+  return id ? (testimoniale.find((t) => t.id === id) ?? null) : null;
+}
+
+function adaugaTestimonial() {
+  contorTestimonial += 1;
+  const t: Testimonial = {
+    id: `testimonial-${contorTestimonial}-${testimoniale.length}`,
+    nume: '',
+    localitate: null,
+    proiect: proiecte[0]?.slug ?? null,
+    lot: null,
+    suprafata: null,
+    data: null,
+    text: '',
+    poza: null,
+    legendaPoza: null,
+  };
+  testimoniale.push(t);
+  testimonialSelectat = t.id;
+  anunta('Testimonial adăugat. Scrie ce a spus cumpărătorul, apoi publică.');
+  randeaza();
+  el<HTMLInputElement>('tst-nume')?.focus();
+}
+
+function stergeTestimonial() {
+  const t = testimonialDupaId(testimonialSelectat);
+  if (!t) return;
+  testimoniale = testimoniale.filter((x) => x.id !== t.id);
+  testimonialSelectat = null;
+  anunta('Testimonialul a fost șters.');
+  randeaza();
+}
+
+/**
+ * Poza vine direct din telefonul sau calculatorul clientului, deci poate avea
+ * și 8 MB. La demo o ținem în localStorage, care are vreo 5 MB cu totul, așa
+ * că o micșorăm înainte: 1400px pe latura mare și JPEG la 72%. La proiectul
+ * real fișierul urcă pe server și pasul ăsta rămâne oricum util, ca pagina să
+ * nu care fotografii de 8 MB.
+ */
+function micsoreazaPoza(fisier: File): Promise<string> {
+  return new Promise((rezolva, respinge) => {
+    const cititor = new FileReader();
+    cititor.onerror = () => respinge(new Error('nu am putut citi fișierul'));
+    cititor.onload = () => {
+      const img = new Image();
+      img.onerror = () => respinge(new Error('fișierul nu e o imagine'));
+      img.onload = () => {
+        const maxim = 1400;
+        const scara = Math.min(1, maxim / Math.max(img.width, img.height));
+        const panza = document.createElement('canvas');
+        panza.width = Math.round(img.width * scara);
+        panza.height = Math.round(img.height * scara);
+        const ctx = panza.getContext('2d');
+        if (!ctx) return respinge(new Error('canvas indisponibil'));
+        ctx.drawImage(img, 0, 0, panza.width, panza.height);
+        rezolva(panza.toDataURL('image/jpeg', 0.72));
+      };
+      img.src = cititor.result as string;
+    };
+    cititor.readAsDataURL(fisier);
+  });
+}
+
+function randezaTestimoniale() {
+  const lista = el('lista-testimoniale');
+  if (lista) {
+    lista.innerHTML = testimoniale.length
+      ? testimoniale
+          .map((t) => {
+            const nume = t.nume || 'fără nume';
+            const unde = [t.lot ? `lotul ${t.lot}` : null, t.poza ? 'cu poză' : 'fără poză']
+              .filter(Boolean)
+              .join(' · ');
+            return `<li><button type="button" data-testimonial="${t.id}" aria-pressed="${t.id === testimonialSelectat}">${nume}<span class="unde">${unde}</span></button></li>`;
+          })
+          .join('')
+      : '<li><p class="ajutor">Niciun testimonial încă.</p></li>';
+
+    for (const b of lista.querySelectorAll<HTMLButtonElement>('[data-testimonial]')) {
+      b.addEventListener('click', () => {
+        testimonialSelectat = b.dataset.testimonial!;
+        randeaza();
+      });
+    }
+  }
+
+  const t = testimonialDupaId(testimonialSelectat);
+  const formular = el('formular-testimonial');
+  if (formular) formular.hidden = !t;
+  const bSterge = el<HTMLButtonElement>('sterge-testimonial');
+  if (bSterge) bSterge.disabled = !t;
+  if (!t) return;
+
+  const set = (id: string, v: string) => {
+    const nod = el<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>(id);
+    if (nod && nod.value !== v) nod.value = v;
+  };
+  set('tst-nume', t.nume);
+  set('tst-localitate', t.localitate ?? '');
+  set('tst-proiect', t.proiect ?? '');
+  set('tst-lot', t.lot ?? '');
+  set('tst-suprafata', t.suprafata ? String(t.suprafata) : '');
+  set('tst-data', t.data ?? '');
+  set('tst-text', t.text);
+  set('tst-legenda', t.legendaPoza ?? '');
+
+  const previzualizare = el('tst-previzualizare');
+  const img = el<HTMLImageElement>('tst-previzualizare-img');
+  const stare = el('tst-poza-stare');
+  if (previzualizare && img) {
+    if (t.poza) {
+      previzualizare.hidden = false;
+      if (img.src !== t.poza) img.src = t.poza;
+      if (stare) stare.textContent = t.poza.startsWith('data:') ? 'Poză pusă din panou.' : 'Poză din datele demo-ului.';
+    } else {
+      previzualizare.hidden = true;
+      img.removeAttribute('src');
+      if (stare) stare.textContent = 'Nicio poză. Poate rămâne și fără.';
+    }
+  }
+}
+
+function legaTestimoniale() {
+  const selectProiect = el<HTMLSelectElement>('tst-proiect');
+  if (selectProiect) {
+    selectProiect.innerHTML =
+      '<option value="">Fără parcelare</option>' +
+      proiecte.map((p) => `<option value="${p.slug}">${p.nume}, ${p.localitate}</option>`).join('');
+  }
+
+  const laSchimbare = () => {
+    const t = testimonialDupaId(testimonialSelectat);
+    if (!t) return;
+    const val = (id: string) =>
+      el<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>(id)?.value.trim() ?? '';
+    t.nume = val('tst-nume');
+    t.localitate = val('tst-localitate') || null;
+    t.proiect = val('tst-proiect') || null;
+    t.lot = val('tst-lot') || null;
+    const sup = Number(val('tst-suprafata'));
+    t.suprafata = Number.isFinite(sup) && sup > 0 ? Math.round(sup) : null;
+    t.data = val('tst-data') || null;
+    t.text = val('tst-text');
+    t.legendaPoza = val('tst-legenda') || null;
+    randeaza();
+  };
+
+  for (const id of ['tst-nume', 'tst-localitate', 'tst-proiect', 'tst-lot', 'tst-suprafata', 'tst-data', 'tst-text', 'tst-legenda']) {
+    const nod = el<HTMLInputElement>(id);
+    nod?.addEventListener('input', laSchimbare);
+    nod?.addEventListener('change', laSchimbare);
+  }
+
+  el<HTMLButtonElement>('testimonial-nou')?.addEventListener('click', adaugaTestimonial);
+  el<HTMLButtonElement>('sterge-testimonial')?.addEventListener('click', stergeTestimonial);
+
+  el<HTMLInputElement>('tst-poza')?.addEventListener('change', async (e) => {
+    const camp = e.target as HTMLInputElement;
+    const fisier = camp.files?.[0];
+    const t = testimonialDupaId(testimonialSelectat);
+    if (!fisier || !t) return;
+    anunta('Se pregătește poza…', 'lucru');
+    try {
+      t.poza = await micsoreazaPoza(fisier);
+      anunta('Poza a fost pusă. Nu uita legenda.');
+    } catch (err) {
+      anunta(`Nu am putut folosi poza (${(err as Error).message}).`, 'eroare');
+    } finally {
+      camp.value = '';
+      randeaza();
+    }
+  });
+
+  el<HTMLButtonElement>('tst-scoate-poza')?.addEventListener('click', () => {
+    const t = testimonialDupaId(testimonialSelectat);
+    if (!t) return;
+    t.poza = null;
+    t.legendaPoza = null;
+    randeaza();
+  });
+}
 
 /* --------------------------------------------------------------- pinuri */
 
@@ -841,6 +1048,7 @@ function genereaza() {
 
 function randeaza() {
   randezaPinuri();
+  randezaTestimoniale();
   (harta.getSource('loturi') as GeoJSONSource | undefined)?.setData({
     type: 'FeatureCollection',
     features: loturi.map(caFeature),
@@ -912,7 +1120,7 @@ function randeaza() {
   // aprins și după publicare, iar pinurile nu-l aprindeau deloc.
   const salvat = citeste();
   const amprenta = (x: Omit<Depozit, 'versiune' | 'actualizat'>) =>
-    JSON.stringify([x.modificari, x.adaugate, x.sterse, x.pinuri]);
+    JSON.stringify([x.modificari, x.adaugate, x.sterse, x.pinuri, x.testimoniale]);
   const nepublicat = amprenta(d) !== amprenta(salvat);
   const bPublica = el<HTMLButtonElement>('publica');
   if (bPublica) bPublica.disabled = !nepublicat;
@@ -929,8 +1137,16 @@ function randeaza() {
     const pinuriSchimbate =
       pinuri.filter((x) => bazaDupaId.get(x.id) !== JSON.stringify(x)).length +
       bazaPinuri.filter((b) => !pinuri.some((x) => x.id === b.id)).length;
+    const bazaTst = new Map(bazaTestimoniale.map((t) => [t.id, JSON.stringify(t)]));
+    const testimonialeSchimbate =
+      testimoniale.filter((t) => bazaTst.get(t.id) !== JSON.stringify(t)).length +
+      bazaTestimoniale.filter((b) => !testimoniale.some((t) => t.id === b.id)).length;
     const n =
-      Object.keys(d.modificari).length + d.adaugate.length + d.sterse.length + pinuriSchimbate;
+      Object.keys(d.modificari).length +
+      d.adaugate.length +
+      d.sterse.length +
+      pinuriSchimbate +
+      testimonialeSchimbate;
     if (nepublicat) {
       stareDepozit.textContent = `${n} ${n === 1 ? 'modificare nepublicată' : 'modificări nepublicate'}`;
     } else if (n === 0) {

@@ -217,6 +217,77 @@ const proiecte = proiecteJson as unknown as Proiect[];
             Generează parcelarea
           </button>
         </details>
+
+        <details class="grup">
+          <summary class="eticheta-grup">Testimoniale</summary>
+
+          <p class="ajutor">
+            Ce spune un cumpărător, cu poza pe care ți-a trimis-o și cu datele lotului. Se vede pe
+            pagina parcelării și în lista de parcelări.
+          </p>
+
+          <ul class="lista-marturii" id="lista-testimoniale"></ul>
+
+          <div class="rand-butoane">
+            <button type="button" id="testimonial-nou" class="buton buton-secundar">Adaugă unul</button>
+            <button type="button" id="sterge-testimonial" class="buton buton-secundar" disabled>Șterge</button>
+          </div>
+
+          <div id="formular-testimonial" hidden>
+            <div class="pereche">
+              <div class="camp-admin">
+                <label for="tst-nume">Cine semnează</label>
+                <input type="text" id="tst-nume" autocomplete="off" placeholder="Familia Ionescu" />
+              </div>
+              <div class="camp-admin">
+                <label for="tst-localitate">De unde e</label>
+                <input type="text" id="tst-localitate" autocomplete="off" placeholder="București, sectorul 1" />
+              </div>
+            </div>
+
+            <div class="camp-admin">
+              <label for="tst-proiect">Parcelarea</label>
+              <select id="tst-proiect"></select>
+            </div>
+
+            <div class="pereche">
+              <div class="camp-admin">
+                <label for="tst-lot">Codul lotului</label>
+                <input type="text" id="tst-lot" autocomplete="off" placeholder="F31" />
+              </div>
+              <div class="camp-admin">
+                <label for="tst-suprafata">Suprafață (m²)</label>
+                <input type="number" id="tst-suprafata" min="1" step="1" />
+              </div>
+            </div>
+
+            <div class="camp-admin">
+              <label for="tst-data">Când a cumpărat</label>
+              <input type="month" id="tst-data" />
+            </div>
+
+            <div class="camp-admin">
+              <label for="tst-text">Ce spune</label>
+              <textarea id="tst-text" rows="5" placeholder="Scrie cu vorbele lui. Un lucru concret convinge mai mult decât zece laude."></textarea>
+            </div>
+
+            <div class="camp-admin">
+              <label for="tst-poza">Poza de la cumpărător</label>
+              <input type="file" id="tst-poza" accept="image/*" />
+              <p class="ajutor" id="tst-poza-stare">Nicio poză. Poate rămâne și fără.</p>
+            </div>
+
+            <div class="camp-admin">
+              <label for="tst-legenda">Legenda pozei</label>
+              <input type="text" id="tst-legenda" autocomplete="off" placeholder="Casa pe lotul F31, la un an de la cumpărare." />
+            </div>
+
+            <figure class="previzualizare" id="tst-previzualizare" hidden>
+              <img id="tst-previzualizare-img" alt="Previzualizarea pozei alese" />
+              <button type="button" id="tst-scoate-poza" class="buton buton-secundar">Scoate poza</button>
+            </figure>
+          </div>
+        </details>
       </div>
 
       <footer class="panou-admin__subsol">
@@ -463,6 +534,63 @@ const proiecte = proiecteJson as unknown as Proiect[];
 
   .mesaj[data-tip='eroare'] {
     color: var(--color-vandut);
+  }
+
+  .lista-marturii {
+    margin: 0.75rem 0;
+    border-top: 1px solid var(--color-hairline);
+  }
+
+  .lista-marturii li {
+    border-bottom: 1px solid var(--color-hairline);
+  }
+
+  .lista-marturii button {
+    display: block;
+    width: 100%;
+    text-align: left;
+    padding: 0.5rem 0;
+    font-size: 0.8125rem;
+    line-height: 1.35;
+  }
+
+  .lista-marturii button[aria-pressed='true'] {
+    font-weight: 500;
+  }
+
+  .lista-marturii .unde {
+    display: block;
+    font-family: var(--font-mono);
+    font-size: 0.6875rem;
+    color: var(--color-ink-3);
+  }
+
+  .previzualizare {
+    margin: 0.75rem 0 0;
+  }
+
+  .previzualizare img {
+    width: 100%;
+    aspect-ratio: 4 / 3;
+    object-fit: cover;
+    border-radius: var(--radius-mic);
+    background: var(--color-paper-2);
+  }
+
+  .previzualizare .buton {
+    margin-top: 0.5rem;
+  }
+
+  .panou-admin textarea {
+    width: 100%;
+    padding: 9px 12px;
+    border: 1px solid var(--color-hairline);
+    border-radius: var(--radius-mic);
+    background: var(--color-paper-3);
+    font: inherit;
+    font-size: 0.875rem;
+    line-height: 1.5;
+    resize: vertical;
   }
 
   .panou-admin .contor {

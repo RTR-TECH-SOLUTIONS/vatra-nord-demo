@@ -1,0 +1,211 @@
+---
+/**
+ * Secțiunea de testimoniale.
+ *
+ * Rânduri alternate, fotografie mare pe o parte și citatul pe cealaltă. Nu e
+ * carusel: la un carusel omul vede unul singur și pleacă, iar aici tocmai
+ * acumularea de cazuri concrete convinge. Nu are nici avatare rotunde, nici
+ * steluțe — sunt semne după care se recunoaște un site de-a gata.
+ *
+ * Lista vine din datele generate la build. Dacă panoul a publicat alta, un
+ * script din pagină o rescrie, ca la restul demo-ului.
+ */
+import { cale } from '../lib/cale';
+import { randDate, type Testimonial } from '../lib/testimoniale';
+import type { Proiect } from '../lib/loturi';
+
+interface Props {
+  testimoniale: Testimonial[];
+  proiecte: Proiect[];
+  titlu?: string;
+  /** Când e pe pagina unei parcelări, se arată doar ce ține de ea. */
+  filtruProiect?: string | null;
+}
+
+const { testimoniale, proiecte, titlu = 'Cine a cumpărat și ce a construit', filtruProiect = null } = Astro.props;
+
+const numeProiect = new Map(proiecte.map((p) => [p.slug, p.nume]));
+const lista = filtruProiect ? testimoniale.filter((t) => t.proiect === filtruProiect) : testimoniale;
+---
+
+{
+  lista.length > 0 && (
+    <section
+      class="sectiune testimoniale"
+      id="testimoniale"
+      data-testimoniale
+      data-filtru={filtruProiect ?? ''}
+      data-proiecte={JSON.stringify(Object.fromEntries(numeProiect))}
+      data-baza={cale('/')}
+    >
+      <h2>{titlu}</h2>
+      <ul class="marturii">
+        {lista.map((t) => (
+          <li class:list={['marturie', !t.poza && 'marturie--fara-foto']}>
+            {t.poza && (
+              <figure class="marturie__foto">
+                <img
+                  src={t.poza.startsWith('data:') ? t.poza : cale(t.poza)}
+                  alt={t.legendaPoza ?? `Lotul cumpărat de ${t.nume}`}
+                  loading="lazy"
+                  width="1400"
+                  height="1000"
+                />
+                {t.legendaPoza && <figcaption>{t.legendaPoza}</figcaption>}
+              </figure>
+            )}
+            <div class="marturie__text">
+              <blockquote>{t.text}</blockquote>
+              <p class="marturie__date cifre">{randDate(t, t.proiect ? numeProiect.get(t.proiect) : null)}</p>
+            </div>
+          </li>
+        ))}
+      </ul>
+    </section>
+  )
+}
+
+<style is:global>
+  .testimoniale h2 {
+    margin-bottom: 1.5rem;
+  }
+
+  .marturii {
+    display: flex;
+    flex-direction: column;
+    gap: 3rem;
+  }
+
+  .marturie {
+    display: grid;
+    grid-template-columns: minmax(0, 5fr) minmax(0, 6fr);
+    gap: 1.75rem 2.5rem;
+    align-items: start;
+  }
+
+  /* Alternanța ține pagina vie fără să adauge nimic decorativ: aceleași două
+     blocuri, doar schimbate între ele. */
+  .marturie:nth-child(even) .marturie__foto {
+    order: 2;
+  }
+
+  /* Fără fotografie textul ar rămâne pe jumătate de pagină, lângă un gol.
+     Trece pe toată lățimea, dar cu măsură de citit. */
+  .marturie--fara-foto {
+    grid-template-columns: 1fr;
+  }
+
+  .marturie--fara-foto .marturie__text {
+    max-width: 46rem;
+  }
+
+  .marturie__foto {
+    margin: 0;
+  }
+
+  .marturie__foto img {
+    width: 100%;
+    height: auto;
+    aspect-ratio: 4 / 3;
+    object-fit: cover;
+    border-radius: var(--radius-panou);
+    background: var(--color-paper-2);
+  }
+
+  .marturie__foto figcaption {
+    margin-top: 0.5rem;
+    font-size: 0.75rem;
+    line-height: 1.45;
+    color: var(--color-ink-3);
+  }
+
+  .marturie__text blockquote {
+    margin: 0;
+    font-family: var(--font-serif);
+    font-size: 1.0625rem;
+    line-height: 1.6;
+    color: var(--color-ink);
+  }
+
+  .marturie__date {
+    margin-top: 1rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid var(--color-hairline);
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    line-height: 1.5;
+    color: var(--color-ink-2);
+  }
+
+  @media (min-width: 768px) {
+    .marturie__text {
+      padding-top: 0.25rem;
+    }
+  }
+
+  @media (max-width: 767px) {
+    .marturii {
+      gap: 2.25rem;
+    }
+    .marturie {
+      grid-template-columns: 1fr;
+      gap: 1rem;
+    }
+    .marturie:nth-child(even) .marturie__foto {
+      order: 0;
+    }
+    .marturie__text blockquote {
+      font-size: 1rem;
+    }
+  }
+</style>
+
+<script>
+  import { citeste } from '../lib/depozit';
+  import { randDate, type Testimonial } from '../lib/testimoniale';
+
+  /**
+   * Rescrie lista dacă panoul a publicat alta. Șablonul de aici oglindește
+   * markup-ul de mai sus; e aceeași dublare ca la AplicaPublicat.astro și
+   * dispare la proiectul real, unde datele vin din baza de date la build.
+   */
+  const sectiune = document.querySelector<HTMLElement>('[data-testimoniale]');
+  const publicate = citeste().testimoniale;
+
+  if (sectiune && publicate) {
+    const numeProiect = JSON.parse(sectiune.dataset.proiecte || '{}') as Record<string, string>;
+    const filtru = sectiune.dataset.filtru || null;
+    const baza = sectiune.dataset.baza || '/';
+    const lista = filtru ? publicate.filter((t) => t.proiect === filtru) : publicate;
+
+    if (lista.length === 0) {
+      sectiune.hidden = true;
+    } else {
+      sectiune.hidden = false;
+      const scapa = (s: string) =>
+        s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+      const adresa = (p: string) => (p.startsWith('data:') ? p : `${baza}/${p}`.replace(/\/{2,}/g, '/'));
+
+      const ul = sectiune.querySelector('.marturii');
+      if (ul) {
+        ul.innerHTML = lista
+          .map((t: Testimonial) => {
+            const legenda = t.legendaPoza ? scapa(t.legendaPoza) : '';
+            const foto = t.poza
+              ? `<figure class="marturie__foto">
+                   <img src="${scapa(adresa(t.poza))}" alt="${legenda || `Lotul cumpărat de ${scapa(t.nume)}`}" loading="lazy" width="1400" height="1000" />
+                   ${legenda ? `<figcaption>${legenda}</figcaption>` : ''}
+                 </figure>`
+              : '';
+            const unde = t.proiect ? (numeProiect[t.proiect] ?? null) : null;
+            return `<li class="marturie${t.poza ? '' : ' marturie--fara-foto'}">${foto}
+              <div class="marturie__text">
+                <blockquote>${scapa(t.text)}</blockquote>
+                <p class="marturie__date cifre">${scapa(randDate(t, unde))}</p>
+              </div></li>`;
+          })
+          .join('');
+      }
+    }
+  }
+</script>

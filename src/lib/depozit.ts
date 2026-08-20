@@ -10,6 +10,7 @@
  */
 import type { ProprietatiLot, StatusLot } from './loturi';
 import type { Pin } from './pin';
+import type { Testimonial } from './testimoniale';
 
 export const CHEIE = 'vatra-nord/parcelare/v1';
 
@@ -35,21 +36,23 @@ export interface Depozit {
    * listă goală înseamnă că au fost șterse toate, ceea ce e altceva.
    */
   pinuri: Pin[] | null;
+  /** Aceeași regulă ca la pinuri: `null` înseamnă „neatinse din panou”. */
+  testimoniale: Testimonial[] | null;
 }
 
-const GOL: Depozit = { versiune: 1, actualizat: null, modificari: {}, adaugate: [], sterse: [], pinuri: null };
+const GOL: Depozit = { versiune: 1, actualizat: null, modificari: {}, adaugate: [], sterse: [], pinuri: null, testimoniale: null };
 
 function areBrowser() {
   return typeof window !== 'undefined' && typeof window.localStorage !== 'undefined';
 }
 
 export function citeste(): Depozit {
-  if (!areBrowser()) return { ...GOL, pinuri: null };
+  if (!areBrowser()) return { ...GOL, pinuri: null, testimoniale: null };
   try {
     const brut = window.localStorage.getItem(CHEIE);
-    if (!brut) return { ...GOL, pinuri: null };
+    if (!brut) return { ...GOL, pinuri: null, testimoniale: null };
     const d = JSON.parse(brut) as Depozit;
-    if (d.versiune !== 1) return { ...GOL, pinuri: null };
+    if (d.versiune !== 1) return { ...GOL, pinuri: null, testimoniale: null };
     return {
       versiune: 1,
       actualizat: d.actualizat ?? null,
@@ -59,9 +62,10 @@ export function citeste(): Depozit {
       // Câmp adăugat după prima versiune: un depozit salvat înainte de pinuri
       // trebuie să se citească în continuare, nu să fie aruncat.
       pinuri: d.pinuri ?? null,
+      testimoniale: d.testimoniale ?? null,
     };
   } catch {
-    return { ...GOL, pinuri: null };
+    return { ...GOL, pinuri: null, testimoniale: null };
   }
 }
 
@@ -73,6 +77,7 @@ export function scrie(d: Omit<Depozit, 'versiune' | 'actualizat'>): Depozit {
     adaugate: d.adaugate,
     sterse: d.sterse,
     pinuri: d.pinuri,
+    testimoniale: d.testimoniale,
   };
   if (areBrowser()) window.localStorage.setItem(CHEIE, JSON.stringify(complet));
   return complet;
@@ -90,7 +95,11 @@ export function numaraModificari(d: Depozit) {
   // Pinurile se publică în bloc, ca listă, deci contează ca o singură
   // modificare: „lista de pinuri a fost rescrisă din panou”.
   return (
-    Object.keys(d.modificari).length + d.adaugate.length + d.sterse.length + (d.pinuri ? 1 : 0)
+    Object.keys(d.modificari).length +
+    d.adaugate.length +
+    d.sterse.length +
+    (d.pinuri ? 1 : 0) +
+    (d.testimoniale ? 1 : 0)
   );
 }
 

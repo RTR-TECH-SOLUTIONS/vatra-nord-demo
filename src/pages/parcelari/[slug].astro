@@ -1,5 +1,8 @@
 ---
 import { cale } from '../../lib/cale';
+import Testimoniale from '../../components/Testimoniale.astro';
+import testimonialeJson from '../../data/testimoniale.json';
+import type { Testimonial } from '../../lib/testimoniale';
 import Baza from '../../layouts/Baza.astro';
 import proiecteJson from '../../data/proiecte.json';
 import loturiJson from '../../data/loturi.json';
@@ -71,6 +74,7 @@ const urbanism = [
   ['Cadastru', 'Individual, pe fiecare lot'],
   ['Intabulare', 'Efectuată, fără sarcini'],
 ];
+const testimoniale = testimonialeJson as unknown as Testimonial[];
 ---
 
 <Baza
@@ -297,6 +301,13 @@ const urbanism = [
           </section>
         )
       }
+
+      <Testimoniale
+        testimoniale={testimoniale}
+        proiecte={[proiect]}
+        filtruProiect={proiect.slug}
+        titlu={`Cine a cumpărat în ${proiect.nume}`}
+      />
 
       <section class="sectiune final">
         <h2>Vino să vezi terenul</h2>
