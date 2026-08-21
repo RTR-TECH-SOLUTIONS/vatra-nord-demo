@@ -58,7 +58,7 @@ const gol: GeoJSON.FeatureCollection = { type: 'FeatureCollection', features: []
 
 let harta: MapLibre;
 let draw: TerraDraw;
-let modBasemap: ModBasemap = 'satelit';
+let modBasemap: ModBasemap = 'harta';
 
 let baza: LotAdmin[] = [];
 let loturi: LotAdmin[] = [];
@@ -273,13 +273,15 @@ if (!container) throw new Error('Lipsește containerul hărții');
 const primul = proiecte[0];
 harta = new MapLibre({
   container,
-  style: styleBasemap(modBasemap),
+  style: await styleBasemap(modBasemap),
   center: primul.camera.center,
   zoom: 15.6,
   bearing: primul.camera.bearing,
   pitch: 0,
   attributionControl: { compact: true },
   logo: false,
+  // Stilurile Mapbox au proprietăți din specificația lor, nu din a MapLibre.
+  validateStyle: false,
   preserveDrawingBuffer: true,
 } as ConstructorParameters<typeof MapLibre>[0]);
 
@@ -1244,7 +1246,7 @@ for (const b of document.querySelectorAll<HTMLButtonElement>('[data-basemap]')) 
     const mod = b.dataset.basemap as ModBasemap;
     if (mod === modBasemap) return;
     modBasemap = mod;
-    harta.setStyle(styleBasemap(mod));
+    void styleBasemap(mod).then((stil) => harta.setStyle(stil));
     harta.once('styledata', () => {
       // Straturile proprii se pierd la schimbarea stilului; le punem la loc.
       window.location.reload();

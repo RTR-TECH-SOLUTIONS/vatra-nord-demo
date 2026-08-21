@@ -29,9 +29,79 @@ export const areCheie = Boolean(CHEIE || TOKEN_MAPBOX);
 /** Mapbox cere logo-ul lor pe hartă, deci pagina trebuie să știe că e folosit. */
 export const areMapbox = Boolean(TOKEN_MAPBOX);
 
-export type ModBasemap = 'satelit' | 'harta';
+export type ModBasemap = 'teren' | 'harta';
+
+/** Stilurile Mapbox folosite pentru fiecare mod. */
+const STIL_MAPBOX: Record<ModBasemap, string> = {
+  harta: 'streets-v12',
+  teren: 'satellite-streets-v12',
+};
+
+/**
+ * Aduce un stil Mapbox și îl face folosibil din MapLibre.
+ *
+ * Stilul lor vine cu adrese `mapbox://`, pe care doar SDK-ul lor le înțelege.
+ * Rescrise în HTTPS, aceleași surse, aceleași sprite-uri și aceleași fonturi
+ * merg direct în MapLibre, deci harta arată exact ca a lor fără să schimbăm
+ * biblioteca.
+ *
+ * Atenție la factură: aici se plătesc dale vectoriale, cu prag gratuit de
+ * 200.000 pe lună, nu cele 750.000 de la satelitul simplu.
+ */
+async function stilMapbox(mod: ModBasemap, token: string): Promise<Style> {
+  const nume = STIL_MAPBOX[mod];
+  const r = await fetch(`https://api.mapbox.com/styles/v1/mapbox/${nume}?access_token=${token}`);
+  if (!r.ok) throw new Error(`stilul Mapbox ${nume} a răspuns ${r.status}`);
+  const stil = (await r.json()) as {
+    sources: Record<string, { url?: string }>;
+    sprite?: string;
+    glyphs?: string;
+  };
+
+  for (const sursa of Object.values(stil.sources)) {
+    if (typeof sursa.url === 'string' && sursa.url.startsWith('mapbox://')) {
+      const id = sursa.url.slice('mapbox://'.length);
+      sursa.url = `https://api.mapbox.com/v4/${id}.json?secure&access_token=${token}`;
+    }
+  }
+  if (stil.sprite?.startsWith('mapbox://sprites/')) {
+    const id = stil.sprite.slice('mapbox://sprites/'.length);
+    stil.sprite = `https://api.mapbox.com/styles/v1/${id}/sprite?access_token=${token}`;
+  }
+  if (stil.glyphs?.startsWith('mapbox://fonts/')) {
+    const id = stil.glyphs.slice('mapbox://fonts/'.length);
+    stil.glyphs = `https://api.mapbox.com/fonts/v1/${id}?access_token=${token}`;
+  }
+
+  // Mapbox pune în stil și chei care nu există în specificație („created”,
+  // „owner”, „draft”, „fog”…). MapLibre validează strict și refuză stilul
+  // întreg din cauza lor, așa că păstrăm doar ce e din specificație.
+  const PERMISE = new Set([
+    'version', 'name', 'metadata', 'center', 'zoom', 'bearing', 'pitch',
+    'light', 'sky', 'terrain', 'sources', 'sprite', 'glyphs', 'layers',
+    'transition', 'projection',
+  ]);
+  const curat: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(stil)) if (PERMISE.has(k)) curat[k] = v;
+
+  // Globul rămâne, e al nostru, nu al stilului lor.
+  curat.projection = { type: 'globe' };
+  return curat as unknown as Style;
+}
 
 export const SURSA_VECTOR = 'openmaptiles';
+
+/**
+ * Fontul etichetelor noastre de pe hartă.
+ *
+ * Serverul de glife e al furnizorului de stil, iar fiecare servește altă
+ * familie: OpenFreeMap are Noto Sans, Mapbox are DIN Pro. Un font cerut de la
+ * cine nu îl are dă 404, iar eticheta pur și simplu nu se desenează — codurile
+ * de lot dispăreau fără nicio eroare vizibilă pe hartă.
+ */
+export const FONT_HARTA = TOKEN_MAPBOX
+  ? ['DIN Pro Bold', 'Arial Unicode MS Bold']
+  : ['Noto Sans Bold'];
 
 const ATRIBUIRE_ESRI =
   'Imagini <a href="https://www.esri.com/">Esri</a>, Maxar, Earthstar Geographics · preview intern';
@@ -574,11 +644,17 @@ function satelitFallback(): Style {
   } as unknown as Style;
 }
 
-export function styleBasemap(mod: ModBasemap): Style {
+export async function styleBasemap(mod: ModBasemap): Promise<Style> {
+  // Cu token, amândouă modurile sunt stilurile Mapbox: „Hartă” e streets, iar
+  // „Teren” e satellite-streets, adică imaginea cu drumuri și denumiri peste.
+  if (TOKEN_MAPBOX) {
+    try {
+      return await stilMapbox(mod, TOKEN_MAPBOX);
+    } catch (err) {
+      // Dacă tokenul e greșit sau expiră, harta trebuie să rămână funcțională.
+      console.warn('[basemap] cad pe stilul propriu:', (err as Error).message);
+    }
+  }
   if (mod === 'harta') return stilPlansa();
-  // Cu token Mapbox rămânem pe stilul nostru hibrid, doar cu imaginea lor
-  // dedesubt: așa plătim un singur contor, cel mai larg. Stilul gata făcut de
-  // la MapTiler intră doar dacă avem cheia lor și nu avem Mapbox.
-  if (TOKEN_MAPBOX) return satelitFallback();
-  return CHEIE ? `https://api.maptiler.com/maps/hybrid/style.json?key=${CHEIE}` : satelitFallback();
+  return CHEIE ? (`https://api.maptiler.com/maps/hybrid/style.json?key=${CHEIE}` as unknown as Style) : satelitFallback();
 }

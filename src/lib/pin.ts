@@ -43,6 +43,27 @@ export const STARI_PIN: Record<StarePin, ConfigStare> = {
 
 export const ORDINE_STARI: StarePin[] = ['disponibil', 'oferta', 'in_curand', 'vandut'];
 
+/**
+ * Culorile discurilor.
+ *
+ * Discul poartă identitatea locului, panglica poartă starea. Așa arată și
+ * harta de referință, și e o împărțire bună: două parcelări vecine se
+ * deosebesc dintr-o privire, iar „disponibil” rămâne citibil pe amândouă.
+ * Paleta e stinsă intenționat, ca semnele să nu concureze cu poligoanele
+ * colorate ale loturilor.
+ */
+const CULORI_DISC = [
+  '#1e5b3c', '#7a4a2b', '#2f6f8f', '#8a2f3b', '#4a5d23',
+  '#5b3a6b', '#2b6a5a', '#8a5a1f', '#3d4f7a', '#6b3f2a',
+];
+
+/** Aceeași proprietate primește mereu aceeași culoare, fără s-o stocăm. */
+export function culoareDisc(id: string): string {
+  let h = 0;
+  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
+  return CULORI_DISC[h % CULORI_DISC.length];
+}
+
 const DIACRITICE: Record<string, string> = {
   ă: 'a', â: 'a', î: 'i', ș: 's', ş: 's', ț: 't', ţ: 't',
   Ă: 'A', Â: 'A', Î: 'I', Ș: 'S', Ş: 'S', Ț: 'T', Ţ: 'T',
@@ -86,6 +107,7 @@ export function elementPin(p: Pin, optiuni: OptiuniPin = {}): HTMLElement {
   nod.dataset.stare = p.stare;
   nod.style.setProperty('--stare', cfg.culoare);
   nod.style.setProperty('--pe-stare', cfg.peCuloare);
+  nod.style.setProperty('--disc', culoareDisc(p.id));
   nod.setAttribute(
     'aria-label',
     [p.nume, cfg.eticheta, p.detaliu].filter(Boolean).join(', '),
