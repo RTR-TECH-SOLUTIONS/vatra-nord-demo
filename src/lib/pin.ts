@@ -70,8 +70,13 @@ export function marcaDinNume(nume: string): string {
     .toUpperCase();
 }
 
+interface OptiuniPin {
+  /** A doua linie din disc: „7 loturi”. Doar parcelările o au. */
+  subMarca?: string | null;
+}
+
 /** Construiește marcajul. Aceeași funcție pe harta publică și în panou. */
-export function elementPin(p: Pin): HTMLElement {
+export function elementPin(p: Pin, optiuni: OptiuniPin = {}): HTMLElement {
   const cfg = STARI_PIN[p.stare] ?? STARI_PIN.disponibil;
 
   const nod = document.createElement('button');
@@ -88,8 +93,22 @@ export function elementPin(p: Pin): HTMLElement {
 
   const disc = document.createElement('span');
   disc.className = 'pin__disc';
-  disc.textContent = p.marca || marcaDinNume(p.nume);
   disc.setAttribute('aria-hidden', 'true');
+
+  const marca = document.createElement('span');
+  marca.className = 'pin__marca';
+  marca.textContent = p.marca || marcaDinNume(p.nume);
+  disc.append(marca);
+
+  // Cifra din disc e ce lipsea: un semn care spune „7 loturi” înainte de
+  // click cântărește altfel decât unul care spune doar „SA”.
+  if (optiuni.subMarca) {
+    const sub = document.createElement('span');
+    sub.className = 'pin__sub';
+    sub.textContent = optiuni.subMarca;
+    disc.append(sub);
+    nod.classList.add('pin--cu-cifra');
+  }
 
   const stare = document.createElement('span');
   stare.className = 'pin__stare';

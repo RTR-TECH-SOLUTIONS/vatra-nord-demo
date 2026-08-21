@@ -983,6 +983,7 @@ function comutaPoi(vizibil: boolean) {
 
 function legaControale() {
   legaPortofoliu();
+  legaFisaParcelare();
 
   for (const s of ORDINE_STATUS) {
     el<HTMLInputElement>(`filtru-${s}`)?.addEventListener('change', (e) => {
@@ -1176,7 +1177,10 @@ function construiestePinuri(generate: Pin[]) {
   }));
 
   for (const intrare of [...pinuriDinProiecte(), ...proprietati]) {
-    const nod = elementPin(intrare.pin);
+    const proiect = intrare.slug ? proiectDupaSlug.get(intrare.slug) : null;
+    const nod = elementPin(intrare.pin, {
+      subMarca: proiect ? `${proiect.statistici.disponibile} loturi` : null,
+    });
     if (intrare.slug) nod.classList.add('pin--parcelare');
     nod.addEventListener('click', (ev) => {
       ev.stopPropagation();
@@ -1192,8 +1196,9 @@ function construiestePinuri(generate: Pin[]) {
 
 function deschidePin(intrare: PinPeHarta) {
   if (intrare.slug) {
-    // Pin de parcelare: intră în ea, exact ca alegerea din listă.
-    alegeParcelare(intrare.slug);
+    // Pin de parcelare: întâi fișa, abia apoi intrarea. Așa omul vede câte
+    // loturi sunt și de la ce preț înainte să se angajeze într-un zoom.
+    deschideFisaParcelare(intrare.slug);
     return;
   }
 
@@ -1249,6 +1254,15 @@ function alegeParcelare(slug: string) {
   ducLaProiect(slug);
 }
 
+function legaFisaParcelare() {
+  el<HTMLButtonElement>('cp-inchide')?.addEventListener('click', inchideFisaParcelare);
+  el<HTMLButtonElement>('cp-intra')?.addEventListener('click', () => {
+    const slug = parcelareInFisa;
+    inchideFisaParcelare();
+    if (slug) alegeParcelare(slug);
+  });
+}
+
 function legaPortofoliu() {
   for (const buton of document.querySelectorAll<HTMLButtonElement>('[data-portofoliu]')) {
     const cheie = buton.dataset.portofoliu!;
@@ -1263,7 +1277,7 @@ function legaPortofoliu() {
         if (intrare) deschidePin(intrare);
         return;
       }
-      alegeParcelare(cheie);
+      deschideFisaParcelare(cheie);
     });
 
     // Trecerea cu mouse-ul peste rând ridică semnul de pe hartă. Fără asta,
@@ -1278,6 +1292,99 @@ function legaPortofoliu() {
     buton.addEventListener('focus', () => evidentiaza(true));
     buton.addEventListener('blur', () => evidentiaza(false));
   }
+}
+
+/* -------------------------------------------------- fișa parcelării */
+
+let parcelareInFisa: string | null = null;
+
+function marcheazaFisa(deschisa: boolean) {
+  const scena = document.querySelector<HTMLElement>('.ecran-harta');
+  if (!scena) return;
+  if (deschisa) scena.dataset.fisa = 'da';
+  else delete scena.dataset.fisa;
+}
+
+function inchideFisaParcelare() {
+  parcelareInFisa = null;
+  const card = el('card-parcelare');
+  if (card) card.hidden = true;
+  marcheazaFisa(false);
+}
+
+/**
+ * Fișa unei parcelări, deschisă din pin sau din portofoliu.
+ *
+ * Referința din piață pune aici patru bife („curent la limită”, „intabulat”) și
+ * un tabel de prețuri. Bifele sunt exact formularea pe care cumpărătorul a
+ * învățat să nu o creadă, așa că aici fiecare utilitate spune și starea reală,
+ * și detaliul, inclusiv atunci când răspunsul e „nu încă”.
+ */
+function deschideFisaParcelare(slug: string) {
+  const proiect = proiectDupaSlug.get(slug);
+  const card = el('card-parcelare');
+  if (!proiect || !card) return;
+
+  parcelareInFisa = slug;
+  inchideLot();
+  popup?.remove();
+  popup = null;
+
+  const pune = (id: string, text: string) => {
+    const nod = el(id);
+    if (nod) nod.textContent = text;
+  };
+
+  const st = proiect.statistici;
+  pune('cp-nume', proiect.nume);
+  pune('cp-unde', `${proiect.localitate}, județul ${proiect.judet}`);
+  pune('cp-disponibile', `${st.disponibile} din ${st.total} disponibile`);
+  pune('cp-pret', `de la ${euro(st.pret_total_min)} + TVA`);
+  pune('cp-descriere', proiect.descriere[0] ?? '');
+
+  const ul = el('cp-utilitati');
+  if (ul) {
+    ul.innerHTML = proiect.utilitati
+      .map((u) => {
+        const gata = u.stare === 'la lot' ? 'da' : 'nu';
+        return `<li data-gata="${gata}"><b>${u.tip}</b><span>${u.stare}${u.detaliu ? ` · ${u.detaliu}` : ''}</span></li>`;
+      })
+      .join('');
+  }
+
+  // Cele mai ieftine loturi libere: e prima întrebare, iar la 213 loturi o
+  // listă întreagă în fișă n-ar ajuta pe nimeni.
+  const lista = el('cp-loturi');
+  if (lista) {
+    const ieftine = loturi.features
+      .filter((f) => f.properties.proiect === slug && f.properties.status === 'disponibil')
+      .sort((a, b) => a.properties.pret_total - b.properties.pret_total)
+      .slice(0, 8);
+    lista.innerHTML = ieftine
+      .map(
+        (f) =>
+          `<li><button type="button" data-lot="${f.properties.id}">${f.properties.cod} <em>${euro(f.properties.pret_total)}</em></button></li>`,
+      )
+      .join('');
+    for (const b of lista.querySelectorAll<HTMLButtonElement>('[data-lot]')) {
+      b.addEventListener('click', () => {
+        const id = b.dataset.lot!;
+        const f = loturi.features.find((x) => x.properties.id === id);
+        const c = centruLot(id);
+        if (!f || !c) return;
+        inchideFisaParcelare();
+        alegeParcelare(slug);
+        window.setTimeout(() => deschideLot(f.properties, c), 1500);
+      });
+    }
+  }
+
+  const pagina = el<HTMLAnchorElement>('cp-pagina');
+  if (pagina) pagina.href = cale(`/parcelari/${slug}`);
+
+  card.hidden = false;
+  card.scrollTop = 0;
+  marcheazaFisa(true);
 }
 
 /** Cutia pe care o ocupă un pin pe ecran, după cât din el e afișat. */
@@ -1326,8 +1433,11 @@ function asazaPinuri() {
   for (const { pin, marker, slug } of pinuri) {
     const nod = marker.getElement();
     let ascuns = false;
+    // Pe glob, la scară de continent, un semn cu „Disponibil” plutind peste
+    // Europa nu spune nimic. Semnele intră în cadru abia când zona are sens.
+    if (z < 8.6) ascuns = true;
     // În vederea de la stradă harta e o scenă, nu o listă.
-    if (modStrada) ascuns = true;
+    else if (modStrada) ascuns = true;
     // Parcelarea în care ai intrat nu are nevoie de propriul semn peste loturi.
     else if (slug && (z > 15.4 || filtre.proiect === slug)) ascuns = true;
     // Proprietățile răzlețe se retrag când te uiți de aproape la parcele.
@@ -1498,7 +1608,9 @@ async function porneste() {
     bearing: camera.bearing,
     pitch: redusa() ? 0 : camera.pitch,
     maxPitch: 80,
-    minZoom: 8,
+    // Globul se vede abia sub zoom 5, deci limita de dinainte îl făcea
+    // inaccesibil.
+    minZoom: 1.5,
     maxZoom: 20,
     attributionControl: { compact: true },
     logo: false,
@@ -1547,15 +1659,17 @@ async function porneste() {
     // Intrarea pe site: pornim de la ansamblu, ca omul să vadă unde e față de
     // București, apoi coborâm spre parcelarea cu cele mai multe loturi libere.
     // Un ecran de pornire cu trei ștampile într-un câmp nu vinde nimic.
-    const toateHotarele = proiecte.flatMap((p) => p.hotar);
-    harta.jumpTo(cameraAnsamblu());
-    corecteazaIncadrare(toateHotarele);
     if (redusa()) {
       const p = parcelareaPrincipala();
       harta.jumpTo(cameraPentruProiect(p));
       corecteazaIncadrare(p.hotar);
       return;
     }
+
+    // Intrarea pornește de pe glob, de unde se vede România întreagă, și
+    // coboară până pe parcelare. E singura secundă din tot site-ul în care
+    // omul înțelege unde e zona față de restul țării.
+    harta.jumpTo({ center: [24.6, 46.4], zoom: 2.4, pitch: 0, bearing: 0 });
     window.setTimeout(() => {
       // Dacă între timp omul a atins harta sau a schimbat filtrul, nu-i luăm
       // camera din mână.
@@ -1563,17 +1677,23 @@ async function porneste() {
       const principala = parcelareaPrincipala();
       harta.flyTo({
         ...cameraPentruProiect(principala),
-        duration: 2400,
-        curve: 1.3,
+        // Mai lung decât un zbor obișnuit, pentru că drumul e de la glob până
+        // la un lot de 600 de metri pătrați. Curba mare ține camera sus la
+        // mijloc, ca să nu treacă razant peste țară.
+        duration: 4200,
+        curve: 1.9,
         essential: false,
       });
       harta.once('moveend', () => corecteazaIncadrare(principala.hotar));
-      dezvaluieLoturi(900);
-    }, 650);
+      dezvaluieLoturi(2600);
+    }, 400);
   });
 
   window.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') inchideLot();
+    if (e.key === 'Escape') {
+      inchideFisaParcelare();
+      inchideLot();
+    }
   });
 }
 

@@ -211,8 +211,11 @@
   }
 
   .pin__disc {
-    display: grid;
-    place-items: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1px;
     width: 44px;
     height: 44px;
     border-radius: 50%;
@@ -229,6 +232,38 @@
     color: var(--color-ink);
   }
 
+  .pin__marca {
+    line-height: 1;
+  }
+
+  /* Cifra din disc: mai mică decât marca, dar nu ștearsă — e informația
+     pentru care omul dă click. */
+  .pin__sub {
+    font-size: 8px;
+    line-height: 1;
+    letter-spacing: 0;
+    color: var(--color-ink-2);
+    white-space: nowrap;
+  }
+
+  .pin--cu-cifra .pin__disc {
+    width: 54px;
+    height: 54px;
+  }
+
+  .pin--parcelare.pin--cu-cifra .pin__disc {
+    width: 62px;
+    height: 62px;
+  }
+
+  .pin--parcelare .pin__sub {
+    font-size: 9px;
+  }
+
+  .pin--mic .pin__sub {
+    display: none;
+  }
+
   .pin__stare {
     margin-top: -7px;
     padding: 2px 6px 3px;
@@ -241,12 +276,22 @@
     box-shadow: 0 1px 2px rgb(0 0 0 / 0.22);
   }
 
+  /* Vârful. Un fir subțire nu arată unde cade semnul; un vârf plin da, și e
+     ce face pinul lor să pară așezat pe teren, nu plutind deasupra. */
   .pin__ac {
-    width: 1.5px;
-    height: 13px;
-    margin-top: 2px;
-    background: var(--color-ink);
-    opacity: 0.5;
+    width: 0;
+    height: 0;
+    margin-top: -1px;
+    border-left: 5px solid transparent;
+    border-right: 5px solid transparent;
+    border-top: 11px solid var(--stare, var(--color-ink));
+    filter: drop-shadow(0 1px 1px rgb(0 0 0 / 0.28));
+  }
+
+  .pin--mic .pin__ac {
+    border-left-width: 4px;
+    border-right-width: 4px;
+    border-top-width: 8px;
   }
 
   /* Numele iese din flux, ca acul să rămână exact pe coordonată. */
@@ -308,10 +353,7 @@
     border-width: 1.5px;
   }
 
-  .pin--mic .pin__ac {
-    height: 9px;
-    margin-top: 3px;
-  }
+
 
   .pin:hover,
   .pin:focus-visible,
@@ -335,7 +377,15 @@
     outline-offset: 2px;
   }
 
+  /*
+    Ascunderea NU se poate face pe opacitate.
+    MapLibre scrie el `opacity` inline pe fiecare marker, ca să le stingă pe
+    cele de pe fața ascunsă a globului, iar stilul inline bate orice clasă.
+    Din cauza asta pinii rămâneau vizibili peste Europa deși erau marcați ca
+    ascunși. `visibility` nu e atinsă de MapLibre, deci ea decide.
+  */
   .pin--ascuns {
+    visibility: hidden;
     opacity: 0;
     pointer-events: none;
     transform: scale(0.9);

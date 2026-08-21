@@ -224,6 +224,9 @@ function stilPlansa(): Style {
   return {
     version: 8,
     glyphs: GLIFE,
+    // Globul. La zoom mic pământul se curbează, iar la apropiere MapLibre trece
+    // singur pe mercator, deci parcelarea rămâne dreaptă acolo unde contează.
+    projection: { type: 'globe' },
     sources: {
       [SURSA_VECTOR]: {
         type: 'vector',
@@ -515,6 +518,7 @@ function satelitFallback(): Style {
   return {
     version: 8,
     glyphs: GLIFE,
+    projection: { type: 'globe' },
     sources: {
       ortofoto: sursaSatelit(),
       [SURSA_VECTOR]: {
