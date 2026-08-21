@@ -23,8 +23,11 @@ type Style = NonNullable<MapOptions['style']>;
  */
 
 const CHEIE = import.meta.env.PUBLIC_MAPTILER_KEY as string | undefined;
+const TOKEN_MAPBOX = import.meta.env.PUBLIC_MAPBOX_TOKEN as string | undefined;
 
-export const areCheie = Boolean(CHEIE);
+export const areCheie = Boolean(CHEIE || TOKEN_MAPBOX);
+/** Mapbox cere logo-ul lor pe hartă, deci pagina trebuie să știe că e folosit. */
+export const areMapbox = Boolean(TOKEN_MAPBOX);
 
 export type ModBasemap = 'satelit' | 'harta';
 
@@ -33,6 +36,8 @@ export const SURSA_VECTOR = 'openmaptiles';
 const ATRIBUIRE_ESRI =
   'Imagini <a href="https://www.esri.com/">Esri</a>, Maxar, Earthstar Geographics · preview intern';
 const ATRIBUIRE_OSM = '<a href="https://www.openstreetmap.org/copyright">© OpenStreetMap</a>';
+const ATRIBUIRE_MAPBOX =
+  '<a href="https://www.mapbox.com/about/maps/">© Mapbox</a> · imagini Maxar';
 
 const GLIFE = 'https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf';
 const TILE_VECTOR = 'https://tiles.openfreemap.org/planet';
@@ -468,7 +473,39 @@ function stilPlansa(): Style {
 /* --------------------------------------------------------------- satelitul */
 
 /**
- * Satelit fără cheie: raster Esri, gradat, peste care punem drumurile discret
+ * Sursa de imagine satelitară, în ordinea în care o vrem.
+ *
+ * Mapbox intră prin Raster Tiles API (`/v4/mapbox.satellite`), nu prin stilul
+ * lor randat ca raster. Arată la fel, dar contorul e cu totul altul: 750.000 de
+ * dale pe lună gratis în loc de 200.000, adică vreo 3.700 de vizite în loc de o
+ * mie. Stratul de străzi și de denumiri rămâne al nostru, deasupra, deci nu
+ * plătim de două ori pentru același ecran.
+ */
+function sursaSatelit() {
+  if (TOKEN_MAPBOX) {
+    return {
+      type: 'raster' as const,
+      tiles: [
+        `https://api.mapbox.com/v4/mapbox.satellite/{z}/{x}/{y}@2x.jpg90?access_token=${TOKEN_MAPBOX}`,
+      ],
+      tileSize: 256,
+      maxzoom: 22,
+      attribution: ATRIBUIRE_MAPBOX,
+    };
+  }
+  return {
+    type: 'raster' as const,
+    tiles: [
+      'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+    ],
+    tileSize: 256,
+    maxzoom: 19,
+    attribution: ATRIBUIRE_ESRI,
+  };
+}
+
+/**
+ * Satelitul, gradat, peste care punem drumurile discret
  * și aceleași etichete. Gradarea nu e cochetărie: imaginea brută din Ilfov e
  * verde-pe-verde, iar peste ea un lot verde „disponibil” dispare. Desaturată
  * și cu ceva contrast, fotografia rămâne credibilă și lasă culoarea loturilor
@@ -479,15 +516,7 @@ function satelitFallback(): Style {
     version: 8,
     glyphs: GLIFE,
     sources: {
-      ortofoto: {
-        type: 'raster',
-        tiles: [
-          'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-        ],
-        tileSize: 256,
-        maxzoom: 19,
-        attribution: ATRIBUIRE_ESRI,
-      },
+      ortofoto: sursaSatelit(),
       [SURSA_VECTOR]: {
         type: 'vector',
         url: TILE_VECTOR,
@@ -543,5 +572,9 @@ function satelitFallback(): Style {
 
 export function styleBasemap(mod: ModBasemap): Style {
   if (mod === 'harta') return stilPlansa();
+  // Cu token Mapbox rămânem pe stilul nostru hibrid, doar cu imaginea lor
+  // dedesubt: așa plătim un singur contor, cel mai larg. Stilul gata făcut de
+  // la MapTiler intră doar dacă avem cheia lor și nu avem Mapbox.
+  if (TOKEN_MAPBOX) return satelitFallback();
   return CHEIE ? `https://api.maptiler.com/maps/hybrid/style.json?key=${CHEIE}` : satelitFallback();
 }
