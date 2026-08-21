@@ -27,6 +27,8 @@ export interface Pin {
    * de metri; prețul total al celor două nu spune nimic pus unul lângă altul.
    */
   pretMp?: number | null;
+  /** Suprafața terenului, în metri pătrați. Din ea și din preț iese totalul. */
+  suprafata?: number | null;
   /** Unde duce click-ul. Gol înseamnă că pinul doar arată locul. */
   legatura?: string | null;
   lng: number;
@@ -73,6 +75,11 @@ const CULORI_DISC = [
   '#1a8f4d', '#cc6612', '#2472c8', '#c22a55', '#6f43c0',
   '#0d8f8f', '#a8761a', '#d1462c', '#4557c4', '#5f9224',
 ];
+
+/** Prețul cerut pe tot terenul, când se știu și suprafața, și prețul pe metru. */
+export function pretTotalPin(p: Pin): number | null {
+  return p.pretMp && p.suprafata ? Math.round(p.pretMp * p.suprafata) : null;
+}
 
 /** Aceeași proprietate primește mereu aceeași culoare, fără s-o stocăm. */
 export function culoareDisc(id: string): string {

@@ -12,7 +12,14 @@ import type { Proiect, ProprietatiLot, StatusLot } from './loturi';
 import type { Pin } from './pin';
 import type { Testimonial } from './testimoniale';
 
-export const CHEIE = 'vatra-nord/parcelare/v1';
+/**
+ * Cheia de stocare poartă și numele firmei, și versiunea formei datelor.
+ * Schimbarea ei aruncă ce s-a publicat înainte, ceea ce e exact ce vrem la
+ * fiecare schimbare de structură: un depozit vechi ar avea loturi cu coduri
+ * care nu mai există și recomandări cu o singură poză în loc de trei, iar
+ * clientul ar deschide linkul și ar vedea o versiune amestecată.
+ */
+export const CHEIE = 'terenuri-boerescu/parcelare/v2';
 
 export interface Modificare {
   status?: StatusLot;
