@@ -44,7 +44,7 @@
       {
         "tip": "Gaz",
         "stare": "în stradă",
-        "detaliu": "conductă pe drumul principal, racordul rămâne în sarcina cumpărătorului"
+        "detaliu": "conductă pe drumul comunal, racordul rămâne în sarcina cumpărătorului"
       },
       {
         "tip": "Apă",
@@ -64,72 +64,72 @@
       {
         "tip": "Drum",
         "stare": "la lot",
-        "detaliu": "8 m lățime, piatră concasată compactată, deszăpezire inclusă"
+        "detaliu": "drum comunal asfaltat, cu deschidere directă din fiecare lot"
       }
     ],
     "descriere": [
-      "Corbeanca Nord e cea mai veche parcelare din portofoliu. Terenul a fost dezmembrat în 2024, imediat după aprobarea PUZ-ului, iar drumurile interioare au fost trasate și compactate în două etape, în vara lui 2025 și în primăvara lui 2026.",
-      "Loturile sunt orientate pe axa drumului comunal, deci fiecare are deschidere directă la stradă și niciunul nu depinde de servitute de trecere. Prima bandă, cea dinspre intrare, s-a vândut integral în 2025.",
-      "Stocul rămas e concentrat în benzile dinspre vest. Ultima bandă intră în vânzare după recepția stației de epurare."
+      "Corbeanca Nord e cea mai veche fâșie din portofoliu. Terenul a fost dezmembrat în 2024, imediat după aprobarea PUZ-ului, iar loturile au ieșit toate cu deschidere directă la drumul comunal, fără servitute de trecere și fără drum interior de întreținut.",
+      "Sunt șapte loturi, nu o parcelare de sute. Fiecare are între 700 și 800 de metri pătrați, cu front de circa 20 de metri liniari, adică fix cât cere regimul P+1E+M fără derogare.",
+      "Primele loturi s-au vândut în 2025, la vecinii care voiau să-și mărească curtea. Ce a rămas e capătul dinspre vest, cel mai apropiat de intrarea în sat."
     ],
     "lotTipic": {
-      "front": 17,
-      "adancime": 32,
-      "drumInterior": 8
+      "front": 20,
+      "adancime": 38,
+      "drumInterior": 0
     },
-    "azimut": 64.9,
-    "azimutNormala": 334.9,
+    "azimut": 244.4,
+    "azimutNormala": 334.4,
     "hotar": [
       [
-        26.041143,
-        44.611126
+        26.045624,
+        44.609058
       ],
       [
-        26.047625,
-        44.613346
+        26.047264,
+        44.609618
       ],
       [
-        26.04953,
-        44.610274
+        26.047045,
+        44.609942
       ],
       [
-        26.043459,
-        44.608253
+        26.045405,
+        44.609382
       ]
     ],
-    "tarlaHa": 20.36,
+    "tarlaHa": 0.58,
     "camera": {
       "center": [
-        26.045344,
-        44.610809
+        26.046333,
+        44.609489
       ],
-      "zoom": 15.6,
-      "bearing": -25.1,
-      "pitch": 60
+      "zoom": 17.4,
+      "bearing": 154.4,
+      "pitch": 46
     },
     "bbox": [
-      26.0412,
-      44.60834,
-      26.04949,
-      44.61328
+      26.04543,
+      44.60906,
+      26.04724,
+      44.60992
     ],
     "statistici": {
-      "total": 312,
-      "disponibile": 100,
-      "rezervate": 19,
-      "vandute": 181,
-      "in_pregatire": 12,
-      "benzi": 5,
-      "suprafata_min": 345,
-      "suprafata_max": 571,
-      "suprafata_totala_ha": 16.6,
-      "front_min": 10.8,
-      "pret_mp_min": 67,
+      "total": 7,
+      "disponibile": 3,
+      "rezervate": 1,
+      "vandute": 3,
+      "in_pregatire": 0,
+      "benzi": 1,
+      "suprafata_min": 728,
+      "suprafata_max": 796,
+      "suprafata_totala_ha": 0.5,
+      "front_min": 19.2,
+      "pret_mp_min": 74,
       "pret_mp_max": 85,
-      "pret_total_min": 24208,
-      "loturi_neregulate": 6,
-      "laturi_max": 14,
-      "randament": 81.7
+      "pret_total_min": 59566,
+      "loturi_neregulate": 0,
+      "laturi_max": 4,
+      "randament": 93.1
     },
     "actualizat": "2026-08-12"
   },
@@ -178,7 +178,7 @@
       {
         "tip": "Gaz",
         "stare": "la lot",
-        "detaliu": "conductă de distribuție pe toate drumurile interioare"
+        "detaliu": "conductă de distribuție pe drumul din fața loturilor"
       },
       {
         "tip": "Apă",
@@ -198,80 +198,72 @@
       {
         "tip": "Drum",
         "stare": "la lot",
-        "detaliu": "9 m lățime, asfaltat pe tronsonul de intrare, restul piatră compactată"
+        "detaliu": "drum sătesc, asfaltat pe tronsonul dinspre DN1"
       }
     ],
     "descriere": [
-      "Săftica e la 600 de metri de DN1, pe partea dinspre Therme, într-o zonă în care comuna Balotești a extins deja rețelele de apă și canalizare. Parcelarea s-a deschis în iulie 2026.",
-      "Loturile au front de minimum 16 metri liniari, ceea ce permite regimul P+1E+M fără derogare. Drumurile interioare au 9 metri, iar tronsonul de intrare a fost asfaltat înainte de prima vânzare.",
-      "Fiind la începutul vânzării, stocul e aproape complet. Ultimele două benzi, cele dinspre limita de nord, se deschid după finalizarea branșamentelor electrice."
+      "Săftica e la 600 de metri de DN1, pe partea dinspre Therme, într-o zonă în care comuna Balotești a extins deja rețelele de apă și canalizare. Fâșia s-a deschis la vânzare în iulie 2026.",
+      "Sunt șase loturi așezate în linie, toate cu ieșire la drumul dinspre sat. Frontul e de minimum 16 metri liniari, deci regimul P+1E+M se obține fără derogare.",
+      "Fiind la începutul vânzării, aproape tot stocul e liber. Restul tarlalei rămâne câmp: se scoate la vânzare abia după ce se închide fâșia asta."
     ],
     "lotTipic": {
-      "front": 18,
-      "adancime": 33,
-      "drumInterior": 9
+      "front": 20,
+      "adancime": 36,
+      "drumInterior": 0
     },
-    "azimut": 2.6,
-    "azimutNormala": 92.6,
+    "azimut": 270,
+    "azimutNormala": 0,
     "hotar": [
       [
-        26.05886,
-        44.618604
+        26.063302,
+        44.615152
       ],
       [
-        26.06208,
-        44.618789
+        26.064868,
+        44.615151
       ],
       [
-        26.063088,
-        44.617863
+        26.064869,
+        44.615493
       ],
       [
-        26.066178,
-        44.615317
-      ],
-      [
-        26.061235,
-        44.615108
-      ],
-      [
-        26.058698,
-        44.616081
+        26.063302,
+        44.615494
       ]
     ],
-    "tarlaHa": 15.83,
+    "tarlaHa": 0.47,
     "camera": {
       "center": [
-        26.062153,
-        44.616939
+        26.064098,
+        44.615314
       ],
-      "zoom": 15.6,
-      "bearing": -87.4,
-      "pitch": 60
+      "zoom": 17.4,
+      "bearing": -180,
+      "pitch": 46
     },
     "bbox": [
-      26.0587,
-      44.61514,
-      26.06561,
-      44.61874
+      26.06335,
+      44.61515,
+      26.06484,
+      44.61548
     ],
     "statistici": {
-      "total": 213,
-      "disponibile": 145,
-      "rezervate": 19,
-      "vandute": 26,
-      "in_pregatire": 23,
-      "benzi": 8,
-      "suprafata_min": 369,
-      "suprafata_max": 623,
-      "suprafata_totala_ha": 12.3,
-      "front_min": 5.3,
-      "pret_mp_min": 57,
-      "pret_mp_max": 72,
-      "pret_total_min": 21204,
-      "loturi_neregulate": 21,
-      "laturi_max": 22,
-      "randament": 77.4
+      "total": 6,
+      "disponibile": 4,
+      "rezervate": 1,
+      "vandute": 1,
+      "in_pregatire": 0,
+      "benzi": 1,
+      "suprafata_min": 693,
+      "suprafata_max": 730,
+      "suprafata_totala_ha": 0.4,
+      "front_min": 19.3,
+      "pret_mp_min": 61,
+      "pret_mp_max": 71,
+      "pret_total_min": 42273,
+      "loturi_neregulate": 0,
+      "laturi_max": 4,
+      "randament": 90.1
     },
     "actualizat": "2026-08-12"
   },
@@ -336,80 +328,72 @@
       {
         "tip": "Drum",
         "stare": "la lot",
-        "detaliu": "8 m lățime, piatră concasată, două intrări din drumul județean"
+        "detaliu": "drum de exploatare pietruit, lățit la 8 m în primăvara lui 2026"
       }
     ],
     "descriere": [
-      "Lacul Vlăsiei are cele mai mari loturi din portofoliu și e singura parcelare unde frontul minim de 18 metri liniari e regulă, nu excepție. Terenul coboară lin către salba de lacuri de pe valea Cociovaliștei.",
-      "POT-ul de 25% și CUT-ul de 0,9 sunt mai restrictive decât în celelalte parcelări, ceea ce ține densitatea jos și păstrează curțile generoase.",
-      "Vânzarea e la început. Majoritatea loturilor sunt încă în pregătire, în așteptarea recepției drumurilor interioare, programată pentru toamna lui 2026."
+      "Lacul Vlăsiei are cele mai mari loturi din portofoliu, aproape o mie de metri pătrați fiecare, și e singurul loc unde frontul de 18 metri liniari e regulă, nu excepție. Terenul coboară lin către salba de lacuri de pe valea Cociovaliștei.",
+      "Sunt cinci loturi, așezate pe drumul de exploatare pe care l-am lățit la 8 metri și l-am pietruit în primăvara lui 2026. POT-ul de 25% și CUT-ul de 0,9 sunt mai restrictive decât în rest, ceea ce ține densitatea jos și păstrează curțile generoase.",
+      "Vânzarea e la început. Două loturi sunt încă în pregătire, în așteptarea recepției drumului, programată pentru toamna lui 2026."
     ],
     "lotTipic": {
-      "front": 19,
-      "adancime": 35,
-      "drumInterior": 8
+      "front": 23,
+      "adancime": 42,
+      "drumInterior": 0
     },
-    "azimut": 88.9,
-    "azimutNormala": 178.9,
+    "azimut": 344.4,
+    "azimutNormala": 74.4,
     "hotar": [
       [
-        26.083528,
-        44.632241
+        26.084633,
+        44.629077
       ],
       [
-        26.091636,
-        44.632355
+        26.084222,
+        44.630126
       ],
       [
-        26.092677,
-        44.629035
+        26.084758,
+        44.630232
       ],
       [
-        26.089193,
-        44.628152
-      ],
-      [
-        26.08553,
-        44.62647
-      ],
-      [
-        26.083447,
-        44.627154
+        26.085169,
+        44.629184
       ]
     ],
-    "tarlaHa": 35.83,
+    "tarlaHa": 0.53,
     "camera": {
       "center": [
-        26.088003,
-        44.628354
+        26.084686,
+        44.629647
       ],
-      "zoom": 15.6,
-      "bearing": -1.1,
-      "pitch": 60
+      "zoom": 17.4,
+      "bearing": -105.6,
+      "pitch": 46
     },
     "bbox": [
-      26.08347,
-      44.62657,
-      26.09254,
-      44.63014
+      26.08423,
+      44.62909,
+      26.08514,
+      44.6302
     ],
     "statistici": {
-      "total": 222,
-      "disponibile": 73,
-      "rezervate": 9,
-      "vandute": 11,
-      "in_pregatire": 129,
-      "benzi": 5,
-      "suprafata_min": 434,
-      "suprafata_max": 698,
-      "suprafata_totala_ha": 14.4,
-      "front_min": 2,
-      "pret_mp_min": 51,
-      "pret_mp_max": 63,
-      "pret_total_min": 24698,
-      "loturi_neregulate": 24,
-      "laturi_max": 7,
-      "randament": 40.3
+      "total": 5,
+      "disponibile": 3,
+      "rezervate": 1,
+      "vandute": 0,
+      "in_pregatire": 1,
+      "benzi": 1,
+      "suprafata_min": 944,
+      "suprafata_max": 988,
+      "suprafata_totala_ha": 0.5,
+      "front_min": 22.5,
+      "pret_mp_min": 53,
+      "pret_mp_max": 61,
+      "pret_total_min": 50032,
+      "loturi_neregulate": 0,
+      "laturi_max": 4,
+      "randament": 91.3
     },
     "actualizat": "2026-08-12"
   }

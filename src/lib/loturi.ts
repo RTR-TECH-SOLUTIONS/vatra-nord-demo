@@ -112,6 +112,31 @@ export const STATUSURI: Record<StatusLot, ConfigStatus> = {
 
 export const ORDINE_STATUS: StatusLot[] = ['disponibil', 'rezervat', 'in_pregatire', 'vandut'];
 
+/**
+ * Direcția dinspre stradă spre lot, în grade de la nord.
+ *
+ * E convenția pe care o cer `edificabilLot`, `silueta` și `orientare`: axa
+ * merge de la stradă spre fundul curții, deci retragerea din față cade pe
+ * latura dinspre drum. Stă aici, într-un singur loc, pentru că patru pagini o
+ * calculau fiecare pe cont propriu — iar când parcelările au trecut de la două
+ * șiruri spate în spate la un singur șir cu fața la drumul existent, toate
+ * patru au rămas întoarse pe dos, cu retragerile inversate și cu silueta casei
+ * împinsă în fundul lotului.
+ *
+ * `azimutNormala` e măsurat dinspre drum spre câmp, deci pentru șirul dinspre
+ * drum e chiar direcția cerută.
+ */
+export function azimutSpreLot(proiect: Pick<Proiect, 'azimutNormala'>, sir: number): number {
+  return sir === 0 ? proiect.azimutNormala % 360 : (proiect.azimutNormala + 180) % 360;
+}
+
+/**
+ * Cota standard de TVA, 21% de la 1 august 2025. Stă într-un singur loc,
+ * pentru că într-o zi se schimbă iar și nu vrem s-o vânăm prin șase fișiere.
+ */
+export const TVA = 0.21;
+export const cuTva = (n: number) => Math.round(n * (1 + TVA));
+
 const nfEur = new Intl.NumberFormat('ro-RO', { maximumFractionDigits: 0 });
 const nfZec = new Intl.NumberFormat('ro-RO', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 

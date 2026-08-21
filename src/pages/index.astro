@@ -8,6 +8,7 @@ import pinuriJson from '../data/pinuri.json';
 import { STARI_PIN, marcaDinNume, type Pin } from '../lib/pin';
 import type { Proiect, ProprietatiLot } from '../lib/loturi';
 import { areCheie, areMapbox } from '../lib/basemap';
+import { benziBuget } from '../lib/buget';
 // Marca Mapbox, fișierul oficial din mapbox-gl.css. E cerută de licență
 // când le folosim dalele, deci nu e decor și nu se scoate.
 const MARCA_MAPBOX = `<svg aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" fill-rule="evenodd" viewBox="0 0 88 23"><defs><path id="logo" d="M11.5 2.25c5.105 0 9.25 4.145 9.25 9.25s-4.145 9.25-9.25 9.25-9.25-4.145-9.25-9.25 4.145-9.25 9.25-9.25zM6.997 15.983c-.051-.338-.828-5.802 2.233-8.873a4.395 4.395 0 013.13-1.28c1.27 0 2.49.51 3.39 1.42.91.9 1.42 2.12 1.42 3.39 0 1.18-.449 2.301-1.28 3.13C12.72 16.93 7 16 7 16l-.003-.017zM15.3 10.5l-2 .8-.8 2-.8-2-2-.8 2-.8.8-2 .8 2 2 .8z"/><path id="text" d="M50.63 8c.13 0 .23.1.23.23V9c.7-.76 1.7-1.18 2.73-1.18 2.17 0 3.95 1.85 3.95 4.17s-1.77 4.19-3.94 4.19c-1.04 0-2.03-.43-2.74-1.18v3.77c0 .13-.1.23-.23.23h-1.4c-.13 0-.23-.1-.23-.23V8.23c0-.12.1-.23.23-.23h1.4zm-3.86.01c.01 0 .01 0 .01-.01.13 0 .22.1.22.22v7.55c0 .12-.1.23-.23.23h-1.4c-.13 0-.23-.1-.23-.23V15c-.7.76-1.69 1.19-2.73 1.19-2.17 0-3.94-1.87-3.94-4.19 0-2.32 1.77-4.19 3.94-4.19 1.03 0 2.02.43 2.73 1.18v-.75c0-.12.1-.23.23-.23h1.4zm26.375-.19a4.24 4.24 0 00-4.16 3.29c-.13.59-.13 1.19 0 1.77a4.233 4.233 0 004.17 3.3c2.35 0 4.26-1.87 4.26-4.19 0-2.32-1.9-4.17-4.27-4.17zM60.63 5c.13 0 .23.1.23.23v3.76c.7-.76 1.7-1.18 2.73-1.18 1.88 0 3.45 1.4 3.84 3.28.13.59.13 1.2 0 1.8-.39 1.88-1.96 3.29-3.84 3.29-1.03 0-2.02-.43-2.73-1.18v.77c0 .12-.1.23-.23.23h-1.4c-.13 0-.23-.1-.23-.23V5.23c0-.12.1-.23.23-.23h1.4zm-34 11h-1.4c-.13 0-.23-.11-.23-.23V8.22c.01-.13.1-.22.23-.22h1.4c.13 0 .22.11.23.22v.68c.5-.68 1.3-1.09 2.16-1.1h.03c1.09 0 2.09.6 2.6 1.55.45-.95 1.4-1.55 2.44-1.56 1.62 0 2.93 1.25 2.9 2.78l.03 5.2c0 .13-.1.23-.23.23h-1.41c-.13 0-.23-.11-.23-.23v-4.59c0-.98-.74-1.71-1.62-1.71-.8 0-1.46.7-1.59 1.62l.01 4.68c0 .13-.11.23-.23.23h-1.41c-.13 0-.23-.11-.23-.23v-4.59c0-.98-.74-1.71-1.62-1.71-.85 0-1.54.79-1.6 1.8v4.5c0 .13-.1.23-.23.23zm53.615 0h-1.61c-.04 0-.08-.01-.12-.03-.09-.06-.13-.19-.06-.28l2.43-3.71-2.39-3.65a.213.213 0 01-.03-.12c0-.12.09-.21.21-.21h1.61c.13 0 .24.06.3.17l1.41 2.37 1.4-2.37a.34.34 0 01.3-.17h1.6c.04 0 .08.01.12.03.09.06.13.19.06.28l-2.37 3.65 2.43 3.7c0 .05.01.09.01.13 0 .12-.09.21-.21.21h-1.61c-.13 0-.24-.06-.3-.17l-1.44-2.42-1.44 2.42a.34.34 0 01-.3.17zm-7.12-1.49c-1.33 0-2.42-1.12-2.42-2.51 0-1.39 1.08-2.52 2.42-2.52 1.33 0 2.42 1.12 2.42 2.51 0 1.39-1.08 2.51-2.42 2.52zm-19.865 0c-1.32 0-2.39-1.11-2.42-2.48v-.07c.02-1.38 1.09-2.49 2.4-2.49 1.32 0 2.41 1.12 2.41 2.51 0 1.39-1.07 2.52-2.39 2.53zm-8.11-2.48c-.01 1.37-1.09 2.47-2.41 2.47s-2.42-1.12-2.42-2.51c0-1.39 1.08-2.52 2.4-2.52 1.33 0 2.39 1.11 2.41 2.48l.02.08zm18.12 2.47c-1.32 0-2.39-1.11-2.41-2.48v-.06c.02-1.38 1.09-2.48 2.41-2.48s2.42 1.12 2.42 2.51c0 1.39-1.09 2.51-2.42 2.51z"/></defs><mask id="clip"><rect x="0" y="0" width="100%" height="100%" fill="white"/><use xlink:href="#logo"/><use xlink:href="#text"/></mask><g id="outline" opacity="0.3" stroke="#000" stroke-width="3"><circle mask="url(#clip)" cx="11.5" cy="11.5" r="9.25"/><use xlink:href="#text" mask="url(#clip)"/></g><g id="fill" opacity="0.9" fill="#fff"><use xlink:href="#logo"/><use xlink:href="#text"/></g></svg>`;
@@ -23,6 +24,9 @@ const actualizat = proiecte[0].actualizat;
 const pretMinim = Math.min(
   ...loturi.features.filter((f) => f.properties.status === 'disponibil').map((f) => f.properties.pret_total),
 );
+// Benzile de buget se randează și la build, ca panoul să nu apară gol până
+// pornește harta. Scriptul le recalculează pe parcelarea aleasă.
+const benzi = benziBuget(loturi.features.map((f) => f.properties.pret_total));
 ---
 
 <Baza
@@ -56,6 +60,9 @@ const pretMinim = Math.min(
       <div id="sertar-continut" class="sertar__continut">
         <div class="sertar__derulabil">
         <div class="sertar__antet">
+          <!-- Închiderea panoului există doar pe desktop: pe telefon sertarul
+               are deja mânerul lui. -->
+          <button type="button" id="inchide-sertar" class="sertar__inchide" aria-label="Închide portofoliul">×</button>
           <h1>Loturi de vânzare</h1>
           <p class="sertar__cifre">
             <span class="sertar__nr cifre" id="nr-gasite">{total}</span>
@@ -87,6 +94,42 @@ const pretMinim = Math.min(
               ))
             }
           </ul>
+        </fieldset>
+
+        <!-- Bugetul stă înaintea listei de parcelări, pentru că întrebarea „cât
+             am de dat” vine înaintea întrebării „unde”. -->
+        <fieldset class="camp camp--buget">
+          <legend>Buget</legend>
+          <ul class="benzi" id="benzi-buget">
+            <li>
+              <label for="buget-toate">
+                <input type="radio" name="buget" id="buget-toate" value="toate" checked />
+                <span class="benzi__bulina" aria-hidden="true" />
+                <span class="benzi__text">Toate</span>
+                <span class="benzi__nr cifre" data-nr-buget="toate">{total}</span>
+              </label>
+            </li>
+            {
+              benzi.map((b) => (
+                <li>
+                  <label for={`buget-${b.id}`}>
+                    <input
+                      type="radio"
+                      name="buget"
+                      id={`buget-${b.id}`}
+                      value={b.id}
+                      data-min={String(b.min)}
+                      data-max={b.max === Infinity ? '' : String(b.max)}
+                    />
+                    <span class="benzi__bulina" aria-hidden="true" />
+                    <span class="benzi__text">{b.eticheta}</span>
+                    <span class="benzi__nr cifre" data-nr-buget={b.id}>0</span>
+                  </label>
+                </li>
+              ))
+            }
+          </ul>
+          <p class="camp__nota">Prețurile sunt fără TVA.</p>
         </fieldset>
 
         <div class="camp camp--portofoliu">
@@ -170,18 +213,6 @@ const pretMinim = Math.min(
           </div>
         </div>
 
-        <div class="camp">
-          <div class="camp__cap">
-            <label id="eticheta-pret">Preț total</label>
-            <output class="cifre" id="pret-valoare" for="pret-min pret-max"></output>
-          </div>
-          <div class="interval" id="pret-bara">
-            <input type="range" id="pret-min" aria-labelledby="eticheta-pret" aria-label="Preț minim" />
-            <input type="range" id="pret-max" aria-labelledby="eticheta-pret" aria-label="Preț maxim" />
-          </div>
-          <p class="camp__nota">Prețurile nu conțin TVA.</p>
-        </div>
-
         <div class="camp camp--linie">
           <label for="filtru-poi" class="comutator">
             <input type="checkbox" id="filtru-poi" />
@@ -200,6 +231,11 @@ const pretMinim = Math.min(
         </div>
       </div>
     </aside>
+
+    <button type="button" id="deschide-sertar" class="pastila-portofoliu panou" hidden>
+      <span class="pastila-portofoliu__punct" aria-hidden="true"></span>
+      Portofoliu
+    </button>
 
     <div class="comutator-basemap panou" role="group" aria-label="Fundal hartă">
       <button type="button" data-basemap="harta" aria-pressed="true">Hartă</button>
@@ -223,28 +259,40 @@ const pretMinim = Math.min(
 
     <!-- Fișa parcelării, deschisă din pin sau din portofoliu. -->
     <aside id="card-parcelare" class="card-parcelare panou" hidden aria-labelledby="cp-nume">
-      <button type="button" id="cp-inchide" class="card-parcelare__inchide" aria-label="Închide">×</button>
-      <p class="card-parcelare__eticheta">Parcelare</p>
-      <h2 id="cp-nume" class="card-parcelare__nume"></h2>
-      <p id="cp-unde" class="card-parcelare__unde"></p>
-
-      <p class="card-parcelare__cifre cifre">
-        <strong id="cp-disponibile"></strong>
-        <span id="cp-pret"></span>
+      <p class="card-parcelare__bara">
+        Parcelare
+        <button type="button" id="cp-inchide" class="card-parcelare__inchide" aria-label="Închide">×</button>
       </p>
+      <div class="card-parcelare__corp">
+        <h2 id="cp-nume" class="card-parcelare__nume"></h2>
+        <p id="cp-unde" class="card-parcelare__unde"></p>
 
-      <p id="cp-descriere" class="card-parcelare__descriere"></p>
+        <p class="card-parcelare__cifre cifre">
+          <strong id="cp-disponibile"></strong>
+          <span id="cp-pret"></span>
+        </p>
 
-      <ul id="cp-utilitati" class="card-parcelare__utilitati"></ul>
+        <p id="cp-descriere" class="card-parcelare__descriere"></p>
 
-      <div class="card-parcelare__tabel">
-        <p class="card-parcelare__subtitlu">Cele mai ieftine loturi libere</p>
-        <ul id="cp-loturi" class="card-parcelare__loturi cifre"></ul>
-      </div>
+        <!-- Toate loturile, nu doar cele mai ieftine: la cinci-șapte loturi,
+             tabelul întreg încape și e chiar oferta. -->
+        <div class="card-parcelare__tabel">
+          <p class="card-parcelare__subtitlu">Loturile din parcelare</p>
+          <ul id="cp-loturi" class="card-parcelare__loturi cifre"></ul>
+        </div>
 
-      <div class="card-parcelare__actiuni">
-        <button type="button" id="cp-intra" class="buton buton-primar">Vezi loturile</button>
-        <a id="cp-pagina" class="buton buton-secundar" href="#">Detalii</a>
+        <!-- Butoanele stau înaintea utilităților: cine s-a decis din tabel nu
+             trebuie să treacă prin șase rânduri de rețele ca să dea telefon. -->
+        <div class="card-parcelare__actiuni">
+          <a id="cp-suna" class="buton buton-primar" href="#">Sună acum</a>
+          <button type="button" id="cp-intra" class="buton buton-secundar">Vezi pe hartă</button>
+          <a id="cp-pagina" class="buton buton-secundar card-parcelare__lat" href="#">Pagina parcelării</a>
+        </div>
+
+        <div class="card-parcelare__tabel">
+          <p class="card-parcelare__subtitlu">Ce ajunge la lot</p>
+          <ul id="cp-utilitati" class="card-parcelare__utilitati"></ul>
+        </div>
       </div>
     </aside>
 
@@ -262,7 +310,6 @@ const pretMinim = Math.min(
       <span class="bara-strada__lot cifre" id="bara-strada-lot"></span>
       <span class="bara-strada__casa" id="bara-strada-casa"></span>
       <span class="bara-strada__stare" id="bara-strada-stare"></span>
-      <button type="button" id="ramai-pe-harta" class="buton buton-secundar">Rămâi pe hartă</button>
       <button type="button" id="iesi-strada" class="buton buton-secundar">Înapoi la parcelare</button>
     </div>
 
@@ -424,35 +471,47 @@ const pretMinim = Math.min(
     top: 57px;
     right: 16px;
     z-index: 11;
-    width: 22rem;
-    max-height: calc(100% - 57px - 152px);
+    width: 21.5rem;
+    max-height: calc(100% - 57px - 108px);
     overflow-y: auto;
     overscroll-behavior: contain;
-    padding: 16px 18px 18px;
     border-radius: var(--radius-panou);
   }
 
+  /* Banda de sus, în verdele casei. Aceeași gramatică cu fișa lotului, care
+     poartă culoarea stării: atingi ceva pe hartă, se deschide un panou cu
+     bandă colorată în capul lui. */
+  .card-parcelare__bara {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 8px 6px 14px;
+    background: var(--color-antet);
+    color: var(--color-antet-text);
+    border-radius: var(--radius-panou) var(--radius-panou) 0 0;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  .card-parcelare__corp {
+    padding: 13px 16px 16px;
+  }
+
   .card-parcelare__inchide {
-    position: absolute;
-    top: 8px;
-    right: 10px;
-    font-size: 1.25rem;
+    font-size: 1.125rem;
     line-height: 1;
-    color: var(--color-ink-3);
-    padding: 4px;
+    color: inherit;
+    opacity: 0.75;
+    padding: 2px 6px;
   }
 
   .card-parcelare__inchide:hover {
-    color: var(--color-ink);
-  }
-
-  .card-parcelare__eticheta {
-    font-size: 0.6875rem;
-    color: var(--color-ink-3);
+    opacity: 1;
   }
 
   .card-parcelare__nume {
-    margin-top: 2px;
     font-family: var(--font-serif);
     font-size: 1.375rem;
     line-height: 1.15;
@@ -493,7 +552,6 @@ const pretMinim = Math.min(
      patru bife și atât, ceea ce e exact formularea pe care piața a învățat
      să nu o creadă. */
   .card-parcelare__utilitati {
-    margin-top: 12px;
     display: grid;
     gap: 5px;
   }
@@ -539,40 +597,76 @@ const pretMinim = Math.min(
     margin-bottom: 6px;
   }
 
+  /* Tabelul loturilor: bulina de stare, codul, suprafața, prețul. Cu cinci-
+     șapte loturi încape tot, deci nu mai e „o selecție”, e oferta. */
   .card-parcelare__loturi {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 2px 12px;
+    display: flex;
+    flex-direction: column;
     font-family: var(--font-mono);
     font-size: 0.75rem;
   }
 
   .card-parcelare__loturi button {
-    display: flex;
-    justify-content: space-between;
-    gap: 8px;
+    display: grid;
+    grid-template-columns: 10px 1fr auto auto;
+    align-items: center;
+    gap: 9px;
     width: 100%;
-    padding: 3px 0;
+    padding: 5px 4px;
+    margin-inline: -4px;
+    border-radius: var(--radius-mic);
     text-align: left;
   }
 
   .card-parcelare__loturi button:hover {
-    color: var(--color-accent);
+    background: var(--color-paper-2);
   }
 
-  .card-parcelare__loturi em {
-    font-style: normal;
+  .card-parcelare__loturi .bulina {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: var(--c);
+  }
+
+  .card-parcelare__loturi .cod {
+    font-family: var(--font-sans);
+    color: var(--color-ink);
+  }
+
+  .card-parcelare__loturi .sup {
+    color: var(--color-ink-3);
+  }
+
+  .card-parcelare__loturi .pret {
+    font-weight: 600;
+    color: var(--color-ink);
+    min-width: 4.5rem;
+    text-align: right;
+  }
+
+  .card-parcelare__loturi [data-stare='vandut'] .pret,
+  .card-parcelare__loturi [data-stare='in_pregatire'] .pret {
+    font-weight: 400;
     color: var(--color-ink-3);
   }
 
   .card-parcelare__actiuni {
-    display: flex;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
     gap: 8px;
     margin-top: 14px;
   }
 
   .card-parcelare__actiuni .buton {
-    flex: 1;
+    width: 100%;
+    font-size: 0.8125rem;
+    padding-inline: 0.5rem;
+    text-align: center;
+  }
+
+  .card-parcelare__lat {
+    grid-column: 1 / -1;
   }
 
   @media (max-width: 767px) {
@@ -723,10 +817,69 @@ const pretMinim = Math.min(
     }
   }
 
+  /* Panoul se poate strânge, ca harta să rămână singură pe ecran. Butonul care
+     îl aduce înapoi stă exact unde era colțul lui, ca să se înțeleagă ce face. */
+  .sertar__inchide {
+    position: absolute;
+    top: 10px;
+    right: 12px;
+    z-index: 2;
+    font-size: 1.25rem;
+    line-height: 1;
+    color: var(--color-ink-3);
+    padding: 4px 6px;
+  }
+
+  .sertar__inchide:hover {
+    color: var(--color-ink);
+  }
+
+  @media (max-width: 767px) {
+    .sertar__inchide {
+      display: none;
+    }
+  }
+
+  .ecran-harta[data-sertar='inchis'] .sertar {
+    display: none;
+  }
+
+  .pastila-portofoliu {
+    position: absolute;
+    top: 16px;
+    left: 16px;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 9px 14px 9px 12px;
+    border-radius: var(--radius-panou);
+    font-size: 0.875rem;
+    font-weight: 500;
+  }
+
+  .pastila-portofoliu__punct {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: var(--color-disponibil);
+  }
+
+  /* Cu panoul strâns, scara și marca nu mai au de ce să stea împinse. */
+  .ecran-harta[data-sertar='inchis'] #harta .maplibregl-ctrl-bottom-left,
+  .ecran-harta[data-sertar='inchis'] .marca-mapbox {
+    left: 16px;
+  }
+
+  .ecran-harta[data-mapbox][data-sertar='inchis'] #harta .maplibregl-ctrl-bottom-left {
+    left: 116px;
+  }
+
   /* Capul de panou. Titlul rămâne titlu semantic, dar eroul vizual e cifra
      care se schimbă cu filtrele: aia e răspunsul la ce tocmai ai cerut, iar
      înainte stătea în subsol, sub linia de plutire. */
   .sertar__antet {
+    position: relative;
     padding-bottom: 16px;
   }
 
@@ -794,6 +947,19 @@ const pretMinim = Math.min(
     font-weight: 500;
     color: var(--color-ink-2);
     margin-bottom: 8px;
+  }
+
+  /* Un `legend` se așază implicit PE linia de sus a fieldset-ului și o taie.
+     Cât timp „Stare lot” era primul câmp, fără bordură, nu se vedea; „Buget”
+     are bordură deasupra, deci linia îi trecea prin cuvânt. Flotarea îl scoate
+     din poziția aia specială și-l face titlu obișnuit. */
+  .camp legend {
+    float: left;
+    width: 100%;
+  }
+
+  .camp legend + * {
+    clear: both;
   }
 
   .camp__cap {
@@ -1014,6 +1180,89 @@ const pretMinim = Math.min(
     color: var(--color-ink-3);
     text-decoration: line-through;
     text-decoration-color: var(--color-hairline);
+  }
+
+  /* ------------------------------------------------------------ benzi de buget */
+  /* Radio-uri, nu slider: omul are bugetul deja formulat, nu-l descoperă
+     trăgând de un capăt. Bulina desenată de noi, ca să fie mai mare decât
+     radioul de sistem și să se nimerească pe telefon. */
+  .benzi {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .benzi label {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 0;
+    cursor: pointer;
+    font-size: 0.9375rem;
+    color: var(--color-ink-2);
+  }
+
+  .benzi input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .benzi__bulina {
+    position: relative;
+    width: 16px;
+    height: 16px;
+    flex: none;
+    border-radius: 50%;
+    border: 1.5px solid var(--color-hairline);
+    background: var(--color-paper-3);
+    transition: border-color 140ms ease-out;
+  }
+
+  .benzi__bulina::after {
+    content: '';
+    position: absolute;
+    inset: 3px;
+    border-radius: 50%;
+    background: var(--color-accent);
+    transform: scale(0);
+    transition: transform 140ms ease-out;
+  }
+
+  .benzi input:checked ~ .benzi__bulina {
+    border-color: var(--color-accent);
+  }
+
+  .benzi input:checked ~ .benzi__bulina::after {
+    transform: scale(1);
+  }
+
+  .benzi input:checked ~ .benzi__text {
+    color: var(--color-ink);
+    font-weight: 500;
+  }
+
+  .benzi input:focus-visible ~ .benzi__bulina {
+    outline: 2px solid var(--color-ink);
+    outline-offset: 2px;
+  }
+
+  .benzi__text {
+    flex: 1;
+  }
+
+  .benzi__nr {
+    font-family: var(--font-mono);
+    font-size: 0.8125rem;
+    color: var(--color-ink-3);
+  }
+
+  /* Banda fără niciun lot nu se ascunde, se stinge: dispariția ei ar muta
+     rândurile sub degetul omului exact când bifează. */
+  .benzi li[data-gol='da'] label {
+    color: var(--color-ink-3);
+    opacity: 0.55;
   }
 
   .comutator {
@@ -1272,6 +1521,11 @@ const pretMinim = Math.min(
     box-shadow: var(--shadow-ridicat);
     background: var(--color-paper-3);
     font-family: var(--font-sans);
+    /* Fișa e mai înaltă decât înainte, iar pe un laptop scurt ieșea din ecran
+       cu butoanele cu tot. Se derulează în ea, nu peste marginea hărții. */
+    max-height: calc(100vh - var(--header-h) - 96px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
   }
 
   .maplibregl-popup-close-button {
@@ -1280,26 +1534,44 @@ const pretMinim = Math.min(
     padding: 2px 8px;
   }
 
+  /* Fișa lotului: panou fix în dreapta pe desktop, sertar de jos pe telefon.
+     Stă în același loc ca fișa parcelării, pentru că e același gest — ai atins
+     ceva pe hartă, se deschide fișa lui — și pentru că altfel ar fi două
+     limbaje de panou pe același ecran. */
   .card-lot {
     position: absolute;
-    /* pe mobil stă deasupra mânerului sertarului, nu peste el */
-    inset: auto 12px 64px 12px;
     z-index: 20;
-    max-height: 66%;
     overflow-y: auto;
+    overscroll-behavior: contain;
   }
 
-  /* În vederea de la stradă fișa e panou fix lângă sidebar: un popup ancorat
-     la înclinare de 76 de grade fuge din ecran. */
   @media (min-width: 768px) {
+    .card-lot {
+      top: 57px;
+      right: 16px;
+      width: 21.5rem;
+      max-height: calc(100% - 57px - 108px);
+      border-radius: var(--radius-panou);
+    }
+    /* În vederea de la nivelul solului fișa trece în stânga, lângă sidebar:
+       în dreapta stă bara de stradă și controalele. */
     .mod-strada .card-lot {
       inset: auto auto 16px calc(var(--sidebar-w) + 32px);
-      width: 22rem;
-      max-height: 60%;
+      top: auto;
+      right: auto;
+      width: 21.5rem;
+      max-height: 62%;
     }
-    /* nota se dă la o parte, ca să nu treacă pe sub fișa lotului */
     .mod-strada .nota-demo {
-      left: calc(var(--sidebar-w) + 32px + 23rem);
+      left: calc(var(--sidebar-w) + 32px + 22.5rem);
+    }
+  }
+
+  @media (max-width: 767px) {
+    .card-lot {
+      /* deasupra mânerului sertarului, nu peste el */
+      inset: auto 8px 62px 8px;
+      max-height: 66%;
     }
   }
 
@@ -1345,15 +1617,6 @@ const pretMinim = Math.min(
     display: none;
   }
 
-  /* Butonul de anulare apare doar cât timp pagina e programată să se deschidă. */
-  #ramai-pe-harta {
-    display: none;
-  }
-
-  .bara-strada--pleaca #ramai-pe-harta {
-    display: inline-flex;
-  }
-
   .bara-strada .buton {
     padding: 0.4rem 0.75rem;
     font-size: 0.8125rem;
@@ -1376,106 +1639,178 @@ const pretMinim = Math.min(
     }
   }
 
+  /* Închiderea stă peste banda colorată, deci moștenește culoarea ei. */
   .card-lot__inchide {
     position: absolute;
-    top: 8px;
-    right: 10px;
-    font-size: 22px;
+    top: 5px;
+    right: 8px;
+    z-index: 1;
+    font-size: 1.125rem;
     line-height: 1;
-    color: var(--color-ink-2);
-    padding: 4px 8px;
+    color: var(--pe-viu, #fff);
+    opacity: 0.8;
+    padding: 3px 7px;
   }
 
+  .card-lot__inchide:hover {
+    opacity: 1;
+  }
+
+  /* --------------------------------------------------------- fișa lotului */
+  /*
+    Structura vine din referința de piață, pentru că funcționează: bandă de
+    stare, preț, desen, casete, butoane. Conținutul e altul — banda ia culoarea
+    vie a pinului atins, prețul e scris și cu TVA, iar desenul e conturul real
+    al lotului, nu un dreptunghi identic pentru toate.
+  */
   .fisa-lot {
-    padding: 18px;
+    /* Lățimea o dă panoul care o poartă: pe desktop e panoul din dreapta, pe
+       telefon sertarul de jos. Cu o lățime fixă aici, banda colorată se oprea
+       la jumătatea sertarului. */
+    width: 100%;
   }
 
-  .fisa-lot__cap {
+  .fisa-lot__bara {
     display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 12px;
-    padding-right: 18px;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 40px 7px 14px;
+    background: var(--viu);
+    color: var(--pe-viu);
+    border-radius: var(--radius-panou) var(--radius-panou) 0 0;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  .fisa-lot__corp {
+    padding: 13px 14px 14px;
   }
 
   .fisa-lot__cod {
     font-family: var(--font-serif);
-    font-size: 1.25rem;
-    line-height: 1.1;
+    font-size: 1.375rem;
+    line-height: 1.05;
   }
 
   .fisa-lot__proiect {
+    margin-top: 2px;
     font-size: 0.8125rem;
     color: var(--color-ink-2);
-    margin-top: 2px;
   }
 
-  .fisa-lot__status {
-    flex: none;
+  .fisa-lot__pret {
+    margin-top: 11px;
+    padding-top: 10px;
+    border-top: 1px solid var(--color-hairline);
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 5px;
+    font-family: var(--font-mono);
+    font-size: 0.8125rem;
+    color: var(--color-ink-2);
+  }
+
+  .fisa-lot__pret strong {
+    font-size: 1.375rem;
+    font-weight: 600;
+    color: var(--color-ink);
+    letter-spacing: -0.02em;
+  }
+
+  .fisa-lot__tvamic {
     font-size: 0.6875rem;
-    font-weight: 500;
-    padding: 3px 8px;
+    color: var(--color-ink-3);
+  }
+
+  .fisa-lot__sep {
+    color: var(--color-hairline);
+  }
+
+  /* Prețul cu TVA e cifra care pleacă din cont. Referința îl ține doar în
+     filtru; aici stă lângă preț, ca omul să nu-l calculeze singur. */
+  .fisa-lot__final {
+    margin-top: 3px;
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    color: var(--color-ink-3);
+  }
+
+  .fisa-lot__plan {
+    margin: 11px 0 0;
+    border: 1px solid var(--color-hairline);
     border-radius: var(--radius-mic);
-    color: var(--c);
-    background: color-mix(in srgb, var(--c) 12%, transparent);
-    border: 1px solid color-mix(in srgb, var(--c) 34%, transparent);
-    white-space: nowrap;
+    background: var(--color-paper);
+    overflow: hidden;
+    line-height: 0;
+  }
+
+  .fisa-lot__plan svg {
+    width: 100%;
+    height: auto;
+    display: block;
   }
 
   .fisa-lot__date {
-    margin-top: 14px;
+    margin-top: 12px;
     border-top: 1px solid var(--color-hairline);
   }
 
   .fisa-lot__date > div {
     display: flex;
     justify-content: space-between;
-    gap: 16px;
-    padding: 7px 0;
+    align-items: baseline;
+    gap: 14px;
+    padding: 6px 0;
     border-bottom: 1px solid var(--color-hairline);
-    font-size: 0.875rem;
+    font-size: 0.8125rem;
   }
 
   .fisa-lot__date dt {
     color: var(--color-ink-2);
+    flex: none;
   }
 
   .fisa-lot__date dd {
-    font-family: var(--font-mono);
+    text-align: right;
+    color: var(--color-ink);
   }
 
   .fisa-lot__nota {
-    margin-top: 10px;
+    margin-top: 9px;
     font-size: 0.8125rem;
     color: var(--color-ink-2);
   }
 
-  .fisa-lot__tva {
-    margin-top: 8px;
-    font-size: 0.6875rem;
-    color: var(--color-ink-3);
+  .fisa-lot__toate {
+    display: inline-block;
+    margin-top: 11px;
+    font-size: 0.8125rem;
+    color: var(--color-accent);
+    text-decoration: underline;
+    text-underline-offset: 3px;
   }
 
   .fisa-lot__actiuni {
-    margin-top: 14px;
-    display: grid;
-    gap: 8px;
-  }
-
-  .fisa-lot__secundare {
+    margin-top: 12px;
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 8px;
+    gap: 7px;
   }
 
   .fisa-lot__actiuni .buton {
     width: 100%;
     font-size: 0.8125rem;
-    padding-inline: 0.75rem;
+    padding-inline: 0.5rem;
+    text-align: center;
   }
 
-  .fisa-lot__actiuni > .buton {
-    font-size: 0.875rem;
+  .fisa-lot__actualizat {
+    margin-top: 9px;
+    font-size: 0.6875rem;
+    color: var(--color-ink-3);
   }
 
   /* Laptop scurt: subsolul e fixat, deci tot ce crește în cap se scade din

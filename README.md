@@ -12,19 +12,23 @@ pagina principală, nu o secțiune: intri pe site și vezi direct ce e de vânza
 
 ## Ce are
 
-- **Harta ca landing.** 747 de loturi în 3 parcelări, plus 20 de proprietăți
-  răzlețe ca pinuri. Filtre pe stare, suprafață și preț, cu legendă care e chiar
-  filtrul.
+- **Harta ca landing.** 18 loturi în 3 fâșii de câte cinci-șapte, plus 20 de
+  proprietăți răzlețe ca pinuri. Fiecare lot are pe hartă un semn cu prețul lui.
+  Filtre pe stare, benzi de buget și portofoliu, cu legendă care e chiar filtrul.
 - **Două fundaluri, amândouă desenate de noi.** „Hartă” e o planșă proprie,
   construită din dale OpenMapTiles în limbajul planului de situație. „Satelit” e
   imaginea aeriană gradată, ca poligoanele loturilor să iasă în față.
-- **Vedere de la stradă.** Click pe un lot coboară camera la nivelul solului și
-  ridică volumul casei maxime admise, la înălțimea reală de cornișă.
-- **Pagină per lot** cu specificații, „ce poți construi aici” (edificabil,
-  amprentă, regim de înălțime, orientare), utilități, rate și vecinătăți.
+- **Fișă de lot ca panou**, cu prețul și cu TVA, rata lunară, planul desenat al
+  lotului între vecinii lui și butoanele de contact. „Vezi de la stradă” coboară
+  camera la nivelul solului și ridică volumul casei maxime admise, la înălțimea
+  reală de cornișă.
+- **Pagină per lot** cu plan de amplasament vectorial (cote, retrageri, silueta
+  casei maxime), „ce poți construi aici”, unde e pe imaginea aeriană, utilități,
+  rate și vecinătăți.
 - **Panou de administrare** (`/demo-admin`): desenezi loturi, le împarți, le
-  unești, generezi o parcelare întreagă dintr-un contur, pui pinuri de
-  proprietate și publici pe hartă.
+  unești, generezi o parcelare întreagă dintr-un contur — inclusiv o parcelare
+  nouă, cu nume și localitate —, pui pinuri de proprietate, scrii testimoniale
+  și publici pe hartă.
 
 ## Cum se rulează
 

@@ -57,6 +57,13 @@ const lista = filtruProiect ? testimoniale.filter((t) => t.proiect === filtruPro
             <div class="marturie__text">
               <blockquote>{t.text}</blockquote>
               <p class="marturie__date cifre">{randDate(t, t.proiect ? numeProiect.get(t.proiect) : null)}</p>
+              {
+                t.lotId && (
+                  <a class="marturie__harta" href={cale(`/?parcelare=${t.proiect}&lot=${t.lotId}`)}>
+                    Vezi lotul {t.lot} pe hartă
+                  </a>
+                )
+              }
             </div>
           </li>
         ))}
@@ -124,6 +131,21 @@ const lista = filtruProiect ? testimoniale.filter((t) => t.proiect === filtruPro
     font-family: var(--font-serif);
     font-size: 1.0625rem;
     line-height: 1.6;
+    color: var(--color-ink);
+  }
+
+  /* Linkul spre lotul cumpărat. Aici e diferența față de o secțiune de păreri:
+     povestea se poate verifica pe hartă, cu vecinii și cu ce mai e liber lângă. */
+  .marturie__harta {
+    display: inline-block;
+    margin-top: 0.75rem;
+    font-size: 0.8125rem;
+    color: var(--color-accent);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+
+  .marturie__harta:hover {
     color: var(--color-ink);
   }
 
@@ -198,10 +220,14 @@ const lista = filtruProiect ? testimoniale.filter((t) => t.proiect === filtruPro
                  </figure>`
               : '';
             const unde = t.proiect ? (numeProiect[t.proiect] ?? null) : null;
+            const harta = t.lotId
+              ? `<a class="marturie__harta" href="${scapa(`${baza}/?parcelare=${t.proiect ?? ''}&lot=${t.lotId}`.replace(/([^:])\/{2,}/g, '$1/'))}">Vezi lotul ${scapa(t.lot ?? '')} pe hartă</a>`
+              : '';
             return `<li class="marturie${t.poza ? '' : ' marturie--fara-foto'}">${foto}
               <div class="marturie__text">
                 <blockquote>${scapa(t.text)}</blockquote>
                 <p class="marturie__date cifre">${scapa(randDate(t, unde))}</p>
+                ${harta}
               </div></li>`;
           })
           .join('');

@@ -8,12 +8,16 @@ import { cale } from '../lib/cale';
 // GeoJSON rămân goale fără nicio eroare în consolă.
 setWorkerUrl(cale('/maplibre/maplibre-gl-worker.mjs'));
 
-import { STATUSURI, ORDINE_STATUS, euro, mp, ml, dataRo } from '../lib/loturi';
+import { STATUSURI, ORDINE_STATUS, euro, mp, ml, dataRo, cuTva, azimutSpreLot } from '../lib/loturi';
 import type { Proiect, ProprietatiLot, StatusLot } from '../lib/loturi';
 import { styleBasemap, FONT_HARTA, SURSA_VECTOR, type ModBasemap } from '../lib/basemap';
 import { aplica as aplicaModificari, citeste as citesteDepozit, numaraModificari } from '../lib/depozit';
 import { edificabilLot, potentialConstruire, silueta } from '../lib/parcelare.js';
 import { elementPin, marcaDinNume, STARI_PIN, type Pin } from '../lib/pin';
+import { elementPinPret } from '../lib/pinPret';
+import { benziBuget, type BandaBuget } from '../lib/buget';
+import { planLot } from '../lib/plan';
+import { CULORI_PRET } from '../lib/pinPret';
 import { FIRMA } from '../lib/firma';
 
 type ColectieLoturi = GeoJSON.FeatureCollection<GeoJSON.Polygon, ProprietatiLot>;
@@ -83,6 +87,48 @@ function citesteJSON<T>(id: string): T {
 
 const proiecte = citesteJSON<Proiect[]>('date-proiecte');
 const proiectDupaSlug = new Map(proiecte.map((p) => [p.slug, p]));
+/**
+ * Parcelările care au venit din build au pagină statică proprie; cele create
+ * din panou, nu — se face la publicarea site-ului. Fișa lor ascunde butonul
+ * care ar duce în gol.
+ */
+const arePagina = new Set(proiecte.map((p) => p.slug));
+
+/**
+ * Parcelările create din panou intră în listă înainte de orice altceva: din ele
+ * ies pinul de pe hartă, rândul din portofoliu și fișa. Fără pasul ăsta, un lot
+ * publicat pe o parcelare nouă ar apărea pe hartă fără nimic în jurul lui.
+ */
+function adaugaProiecteNoi(noi: Proiect[]) {
+  const lista = document.querySelector('.portofoliu');
+  const randuri = document.querySelectorAll('[data-fel="parcelare"]');
+  const dupaCare = randuri.length ? randuri[randuri.length - 1].closest('li') : null;
+
+  for (const p of noi) {
+    if (proiectDupaSlug.has(p.slug)) continue;
+    proiecte.push(p);
+    proiectDupaSlug.set(p.slug, p);
+    if (!lista) continue;
+
+    const li = document.createElement('li');
+    li.innerHTML = `
+      <button type="button" class="rand" data-portofoliu="${p.slug}" data-fel="parcelare" aria-pressed="false">
+        <span class="rand__marca" style="--c: ${STARI_PIN.disponibil.culoare}" aria-hidden="true">${marcaDinNume(p.nume)}</span>
+        <span class="rand__text">
+          <span class="rand__nume">${p.nume}</span>
+          <span class="rand__sub">${p.localitate} · parcelare nouă</span>
+        </span>
+        <span class="rand__nr cifre">${p.statistici.disponibile}</span>
+      </button>`;
+    if (dupaCare) dupaCare.after(li);
+    else lista.append(li);
+  }
+
+  const contor = document.querySelector('.camp--portofoliu .camp__nr');
+  if (contor) {
+    contor.textContent = String(document.querySelectorAll('[data-portofoliu]').length - 1);
+  }
+}
 
 interface Filtre {
   proiect: string;
@@ -106,7 +152,6 @@ let straturiPuse = false;
 let modStrada: string | null = null;
 let parcelareaDinStrada: string | null = null;
 let secventa = 0;
-let ceasPagina: number | null = null;
 
 const filtre: Filtre = {
   proiect: 'toate',
@@ -152,18 +197,6 @@ function aplicaFiltre() {
       harta.setFilter(id, expresieFiltru(s) as never);
       harta.setLayoutProperty(id, 'visibility', vizibil ? 'visible' : 'none');
     }
-  }
-
-  // Codurile stau pe un singur strat, deci filtrul lui e reuniunea stărilor
-  // bifate. Fără asta ar rămâne scrise codurile loturilor tocmai stinse.
-  if (harta.getLayer('loturi-cod')) {
-    const active = ORDINE_STATUS.filter((s) => filtre.statusuri.has(s));
-    harta.setFilter(
-      'loturi-cod',
-      (active.length
-        ? ['any', ...active.map((s) => expresieFiltru(s))]
-        : ['==', ['get', 'id'], '__niciunul__']) as never,
-    );
   }
 
   actualizeazaContoare();
@@ -223,6 +256,25 @@ function actualizeazaContoare() {
         return true;
       }).length,
     );
+  }
+
+  // Câte loturi are fiecare bandă de buget, cu celelalte filtre puse. Panoul
+  // de referință n-are cifra asta, și fără ea omul bifează pe rând ca să vadă
+  // unde e stoc.
+  const fara = inProiect.filter((f) => {
+    const p = f.properties;
+    if (!filtre.statusuri.has(p.status)) return false;
+    return p.suprafata >= filtre.supMin && p.suprafata <= filtre.supMax;
+  });
+  const scrie = (id: string, n: number) => {
+    const nod = document.querySelector<HTMLElement>(`[data-nr-buget="${id}"]`);
+    if (nod) nod.textContent = String(n);
+    const rand = nod?.closest('li');
+    if (rand) rand.dataset.gol = n === 0 ? 'da' : 'nu';
+  };
+  scrie('toate', fara.length);
+  for (const b of benziCurente) {
+    scrie(b.id, fara.filter((f) => f.properties.pret_total >= b.min && f.properties.pret_total < b.max).length);
   }
 }
 
@@ -319,28 +371,9 @@ function adaugaStraturi() {
     });
   }
 
-  // Codul lotului, scris pe lot. Fără el grila e un mozaic colorat; cu el
-  // devine planșă de parcelare, iar omul poate spune la telefon „D8”, nu
-  // „al treilea de sus”.
-  harta.addLayer({
-    id: 'loturi-cod',
-    type: 'symbol',
-    source: SURSA,
-    minzoom: 15.2,
-    layout: {
-      'text-field': ['get', 'cod'],
-      'text-font': FONT_ETICHETA,
-      'text-size': ['interpolate', ['linear'], ['zoom'], 15.2, 8.5, 19, 14],
-      'text-padding': 3,
-      'text-allow-overlap': false,
-    },
-    paint: {
-      'text-color': modBasemap === 'harta' ? '#2b3134' : '#ffffff',
-      'text-halo-color': modBasemap === 'harta' ? 'rgba(247,244,238,0.85)' : 'rgba(0,0,0,0.55)',
-      'text-halo-width': 1.1,
-      'text-opacity': ['interpolate', ['linear'], ['zoom'], 15.2, 0, 15.8, 1],
-    },
-  });
+  // Codul lotului nu mai are strat propriu: îl poartă pinul de preț, care
+  // apare de la același zoom și spune și cât costă. Două scrisuri peste
+  // același dreptunghi de teren însemnau două etichete care se ceartă.
 
   // Drumurile parcelării, generate de motor odată cu loturile. Le desenăm ca
   // suprafață, nu ca simplu gol între rânduri: se vede că e o stradă.
@@ -554,36 +587,101 @@ function ascundeTooltip() {
 
 /* ------------------------------------------------------------ fișa lotului */
 
+/**
+ * Fișa unui lot, deschisă din pin sau din poligon.
+ *
+ * Referința din piață pune aici o bandă colorată de stare, prețul, un desen
+ * generic al lotului, patru casete de date și patru butoane. Structura e bună,
+ * așa că o păstrăm; ce schimbăm e conținutul fiecărei părți:
+ *
+ *  - banda are exact culoarea pinului pe care tocmai s-a dat click, ca omul să
+ *    vadă că s-a deschis ce a atins;
+ *  - prețul e scris și cu TVA, pentru că ăsta e banul care pleacă din cont;
+ *  - desenul e conturul real al lotului, cu retragerile și casa maximă, nu un
+ *    dreptunghi identic pentru toate loturile;
+ *  - casetele nu spun „strada / actele”, spun cifra: câte utilități ajung
+ *    chiar la lot și cât se poate construi.
+ */
 function fisaLot(p: ProprietatiLot): string {
   const proiect = proiectDupaSlug.get(p.proiect);
   const cfg = STATUSURI[p.status];
+  const viu = CULORI_PRET[p.status] ?? CULORI_PRET.disponibil;
+  const lot = loturi.features.find((f) => f.properties.id === p.id);
+
+  // Desenul: conturul lotului, retragerile și silueta casei maxime.
+  let desen = '';
+  let construit = '';
+  if (lot && proiect) {
+    const spreLot = azimutSpreLot(proiect, p.sir);
+    const edificabil = edificabilLot(lot.geometry.coordinates[0], spreLot);
+    const construire = potentialConstruire(p.suprafata, proiect.urbanism, edificabil?.suprafata ?? null);
+    const casa = silueta(edificabil, construire.amprenta);
+    desen = planLot({
+      inel: lot.geometry.coordinates[0] as [number, number][],
+      azimutStrada: (spreLot + 180) % 360,
+      edificabil: edificabil?.inel ?? null,
+      casa: casa?.inel ?? null,
+      vecini: loturi.features
+        .filter((f) => f.properties.proiect === p.proiect && f.properties.id !== p.id)
+        .map((f) => ({
+          inel: f.geometry.coordinates[0] as [number, number][],
+          culoare: STATUSURI[f.properties.status].culoare,
+          contur: STATUSURI[f.properties.status].contur,
+        })),
+      latime: 292,
+      inaltime: 124,
+      culoare: cfg.culoare,
+      contur: cfg.contur,
+      compact: true,
+    });
+    construit = `${proiect.urbanism.regim}, ${construire.amprenta} m² la sol`;
+  }
+
+  const laLot = proiect ? proiect.utilitati.filter((u) => u.stare === 'la lot').length : 0;
+  const rata = proiect?.finantare
+    ? Math.round((p.pret_total * (1 - proiect.finantare.avans / 100)) / proiect.finantare.luni)
+    : null;
+
   const randuri: [string, string][] = [
-    ['Suprafață', mp(p.suprafata)],
-    ['Deschidere', ml(p.front)],
-    ['Preț', euro(p.pret_total)],
-    ['Preț pe m²', `${euro(p.pret_mp)}/m²`],
+    ['Deschidere', `${ml(p.front)} la stradă`],
+    ['Utilități', proiect ? `${laLot} din ${proiect.utilitati.length} ajung la lot` : '—'],
+    ['Acte', 'Intabulat, fără sarcini'],
+    ['Poți construi', construit || '—'],
   ];
 
   return `
-    <div class="fisa-lot">
-      <div class="fisa-lot__cap">
-        <div>
-          <p class="fisa-lot__cod">Lotul ${p.cod}</p>
-          <p class="fisa-lot__proiect">${proiect ? `${proiect.nume}, ${proiect.localitate}` : p.proiect}</p>
-        </div>
-        <span class="fisa-lot__status" style="--c: ${cfg.culoare}">${cfg.eticheta}</span>
-      </div>
-      <dl class="fisa-lot__date cifre">
-        ${randuri.map(([k, v]) => `<div><dt>${k}</dt><dd>${v}</dd></div>`).join('')}
-      </dl>
-      ${p.observatii ? `<p class="fisa-lot__nota">${p.observatii}</p>` : ''}
-      <p class="fisa-lot__tva">Prețul nu conține TVA. Actualizat ${dataRo(p.actualizat)}.</p>
-      <div class="fisa-lot__actiuni">
-        <a class="buton buton-primar" href="${cale(`/lot/${p.id}`)}">Vezi pagina lotului</a>
-        <div class="fisa-lot__secundare">
-          <a class="buton buton-secundar" href="tel:+40722000000">Sună</a>
+    <div class="fisa-lot" data-stare="${p.status}" style="--viu: ${viu.fond}; --pe-viu: ${viu.text}">
+      <p class="fisa-lot__bara">${cfg.eticheta}</p>
+      <div class="fisa-lot__corp">
+        <h2 class="fisa-lot__cod">Lotul ${p.cod}</h2>
+        <p class="fisa-lot__proiect">${proiect ? `${proiect.nume} · ${proiect.localitate}, ${proiect.judet}` : p.proiect}</p>
+
+        <p class="fisa-lot__pret cifre">
+          <strong>${euro(p.pret_total)}</strong><span class="fisa-lot__tvamic">+ TVA</span>
+          <span class="fisa-lot__sep">·</span>${mp(p.suprafata)}
+          <span class="fisa-lot__sep">·</span>${euro(p.pret_mp)}/m²
+        </p>
+        <p class="fisa-lot__final cifre">
+          ${euro(cuTva(p.pret_total))} cu TVA${rata ? ` · rată de la ${euro(rata)} pe lună` : ''}
+        </p>
+
+        ${desen ? `<figure class="fisa-lot__plan">${desen}</figure>` : ''}
+
+        <dl class="fisa-lot__date">
+          ${randuri.map(([k, v]) => `<div><dt>${k}</dt><dd>${v}</dd></div>`).join('')}
+        </dl>
+
+        ${p.observatii ? `<p class="fisa-lot__nota">${p.observatii}</p>` : ''}
+
+        ${proiect ? `<a class="fisa-lot__toate" href="${cale(`/parcelari/${proiect.slug}`)}">Toate cele ${proiect.statistici.total} loturi din ${proiect.nume}</a>` : ''}
+
+        <div class="fisa-lot__actiuni">
+          <a class="buton buton-primar" href="${FIRMA.telefonLink}">Sună acum</a>
+          <button class="buton buton-secundar" type="button" data-strada="${p.id}">Vezi de la stradă</button>
+          <a class="buton buton-secundar" href="${cale(`/lot/${p.id}`)}">Pagina lotului</a>
           <button class="buton buton-secundar" type="button" data-copiaza="${p.id}">Copiază linkul</button>
         </div>
+        <p class="fisa-lot__actualizat">Actualizat ${dataRo(p.actualizat)}.</p>
       </div>
     </div>`;
 }
@@ -599,34 +697,29 @@ function deschideLot(p: ProprietatiLot, coord: [number, number]) {
   lotSelectat = p.id;
   harta.setFilter('lot-selectat', ['==', ['get', 'id'], p.id] as never);
 
-  // Coborârea pornește prima, ca fișa să știe de la început că e afișată în
-  // modul de la stradă și să apară ca panou fix, nu ca popup ancorat.
-  coboaraLaStrada(p, coord);
-
-  const html = fisaLot(p);
+  // Click-ul pe lot deschide fișa, atât. Coborârea la nivelul solului e un
+  // buton din fișă, nu o consecință: cine compară trei loturi nu vrea trei
+  // zboruri de cameră între ele, iar înainte fiecare click ducea și la
+  // schimbarea paginii după trei secunde, adică harta îți fugea de sub mână.
+  // Fișa e panou fix, nu popup ancorat. Un popup de mărimea asta, agățat de un
+  // lot din mijlocul ecranului, iese pe sub marginea de jos cu butoane cu tot,
+  // și niciun anchor nu-l salvează pe un laptop scurt. Panoul stă mereu
+  // întreg, în același loc, și nu acoperă lotul pe care tocmai ai dat click.
+  inchideFisaParcelare();
   popup?.remove();
   popup = null;
 
-  if (esteMobil() || modStrada) {
-    if (cardMobil) {
-      cardMobil.innerHTML = `<button class="card-lot__inchide" type="button" aria-label="Închide">×</button>${html}`;
-      cardMobil.hidden = false;
-      cardMobil.querySelector('.card-lot__inchide')?.addEventListener('click', inchideLot);
-      legaCopiere(cardMobil);
-    }
-  } else {
-    if (cardMobil) cardMobil.hidden = true;
-    popup = new Popup({ maxWidth: '320px', offset: 12, closeButton: true, closeOnClick: false })
-      .setLngLat(coord)
-      .setHTML(html)
-      .addTo(harta);
-    popup.on('close', () => {
-      lotSelectat = null;
-      harta.setFilter('lot-selectat', ['==', ['get', 'id'], '__niciunul__'] as never);
-    });
-    const nod = popup.getElement();
-    if (nod) legaCopiere(nod);
+  if (cardMobil) {
+    // Culoarea benzii urcă pe panou, ca butonul de închidere să se vadă peste ea.
+    cardMobil.style.setProperty('--pe-viu', (CULORI_PRET[p.status] ?? CULORI_PRET.disponibil).text);
+    cardMobil.innerHTML = `<button class="card-lot__inchide" type="button" aria-label="Închide">×</button>${fisaLot(p)}`;
+    cardMobil.hidden = false;
+    cardMobil.querySelector('.card-lot__inchide')?.addEventListener('click', inchideLot);
+    legaActiuniFisa(cardMobil, p, coord);
+    cardMobil.scrollTop = 0;
   }
+
+  actualizeazaPinuri();
 
   const url = new URL(window.location.href);
   url.searchParams.set('lot', p.id);
@@ -640,12 +733,17 @@ function inchideLot() {
   popup = null;
   if (cardMobil) cardMobil.hidden = true;
   if (straturiPuse) harta.setFilter('lot-selectat', ['==', ['get', 'id'], '__niciunul__'] as never);
+  actualizeazaPinuri();
   const url = new URL(window.location.href);
   url.searchParams.delete('lot');
   history.replaceState(null, '', url);
 }
 
-function legaCopiere(radacina: HTMLElement) {
+function legaActiuniFisa(radacina: HTMLElement, p: ProprietatiLot, coord: [number, number]) {
+  radacina.querySelector<HTMLButtonElement>('[data-strada]')?.addEventListener('click', () => {
+    coboaraLaStrada(p, centruLot(p.id) ?? coord);
+  });
+
   const buton = radacina.querySelector<HTMLButtonElement>('[data-copiaza]');
   buton?.addEventListener('click', async () => {
     const url = new URL(window.location.href);
@@ -689,7 +787,10 @@ function spatiereCadru() {
   // parcelarea ajunge o ștampilă. Marginea laterală e pentru etichetele
   // parcelărilor, care oricum nu se văd când una singură e aleasă.
   if (esteMobil()) return { top: Math.round(h * 0.15), right: 22, bottom: 168, left: 22 };
-  const latime = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--sidebar-w'), 10) || 340;
+  const inchis = document.querySelector('.ecran-harta')?.getAttribute('data-sertar') === 'inchis';
+  const latime = inchis
+    ? 0
+    : parseInt(getComputedStyle(document.documentElement).getPropertyValue('--sidebar-w'), 10) || 340;
   // Pe ecran scurt un procent fix din înălțime mănâncă tot cadrul util, deci
   // marginea de sus e plafonată.
   return { top: Math.min(Math.round(h * 0.22), 180), right: 64, bottom: 64, left: latime + 48 };
@@ -735,7 +836,10 @@ function incadrare(hotar: [number, number][], bearing: number, pitch: number, ma
 
   return {
     center: [lon0, lat0] as [number, number],
-    zoom: Math.min(Math.max(zoom, 12), 17),
+    // Plafonul era 17, adică exact cât încape o parcelare de două sute de
+    // loturi. Fâșiile de cinci-șapte loturi au nevoie de mai mult, altfel
+    // rămân o dungă în mijlocul ecranului și pinurile de preț se calcă.
+    zoom: Math.min(Math.max(zoom, 12), 18.4),
     bearing,
     pitch,
     padding: pad,
@@ -797,13 +901,14 @@ function cameraAnsamblu() {
  */
 function pozaStrada(p: ProprietatiLot, centru: [number, number]) {
   const proiect = proiectDupaSlug.get(p.proiect);
-  const normala = proiect?.azimutNormala ?? 0;
-  const spreStrada = p.sir === 0 ? normala : (normala + 180) % 360;
+  // Camera stă în stradă și privește spre lot, deci merge chiar pe direcția
+  // dinspre stradă spre lot.
+  const spreLot = proiect ? azimutSpreLot(proiect, p.sir) : 0;
   return {
     center: centru,
     zoom: 19.3,
     pitch: 74,
-    bearing: (spreStrada + 180) % 360,
+    bearing: spreLot,
   };
 }
 
@@ -833,35 +938,7 @@ function coboaraLaStrada(p: ProprietatiLot, centru: [number, number]) {
   window.setTimeout(() => {
     if (al !== secventa) return;
     harta.easeTo({ ...tinta, duration: 1700, easing: lin, essential: true });
-    programeazaPagina(p, al);
   }, 1150);
-}
-
-/**
- * Coborârea se termină pe pagina lotului. Lăsăm o pauză la nivelul solului, ca
- * să se vadă unde e, și o portiță de anulare pentru cine vrea doar să compare
- * loturi pe hartă.
- */
-function programeazaPagina(p: ProprietatiLot, al: number) {
-  const bara = el('bara-strada');
-  bara?.classList.add('bara-strada--pleaca');
-  const stare = el('bara-strada-stare');
-  if (stare) stare.textContent = 'Se deschide pagina lotului…';
-
-  ceasPagina = window.setTimeout(() => {
-    if (al !== secventa) return;
-    window.location.href = cale(`/lot/${p.id}`);
-  }, 3100);
-}
-
-function anuleazaPagina() {
-  if (ceasPagina !== null) {
-    window.clearTimeout(ceasPagina);
-    ceasPagina = null;
-  }
-  el('bara-strada')?.classList.remove('bara-strada--pleaca');
-  const stare = el('bara-strada-stare');
-  if (stare) stare.textContent = '';
 }
 
 /** Volumul casei maxime pentru lotul deschis, calculat în browser. */
@@ -870,8 +947,7 @@ function aratConstruibil(p: ProprietatiLot) {
   const lot = loturi.features.find((f) => f.properties.id === p.id);
   if (!proiect || !lot) return;
 
-  const azimutSpreLot = p.sir === 0 ? (proiect.azimutNormala + 180) % 360 : proiect.azimutNormala;
-  const edificabil = edificabilLot(lot.geometry.coordinates[0], azimutSpreLot);
+  const edificabil = edificabilLot(lot.geometry.coordinates[0], azimutSpreLot(proiect, p.sir));
   if (!edificabil) return;
   const construire = potentialConstruire(p.suprafata, proiect.urbanism, edificabil.suprafata);
   const casa = silueta(edificabil, construire.amprenta);
@@ -934,7 +1010,6 @@ function porneStrada(p: ProprietatiLot) {
 }
 
 function iesiDinStrada(inapoiLaParcelare = true) {
-  anuleazaPagina();
   if (!modStrada) return;
   secventa += 1;
   modStrada = null;
@@ -1012,12 +1087,6 @@ function legaControale() {
     aplicaFiltre();
   }, (v) => mp(v));
 
-  legaInterval('pret', (min, max) => {
-    filtre.pretMin = min;
-    filtre.pretMax = max;
-    aplicaFiltre();
-  }, (v) => euro(v));
-
   el<HTMLButtonElement>('reseteaza')?.addEventListener('click', () => {
     filtre.proiect = 'toate';
     filtre.statusuri = new Set(ORDINE_STATUS);
@@ -1044,7 +1113,22 @@ function legaControale() {
     inchideLot();
   });
 
-  el<HTMLButtonElement>('ramai-pe-harta')?.addEventListener('click', anuleazaPagina);
+  // Strângerea panoului pe desktop. Referința din piață are același gest, iar
+  // pe o hartă care e tot produsul, un panou de 372 de pixeli care nu se poate
+  // da la o parte e o piedică.
+  const scena = document.querySelector<HTMLElement>('.ecran-harta');
+  const pastila = el<HTMLButtonElement>('deschide-sertar');
+  const aratePanou = (deschis: boolean) => {
+    if (!scena) return;
+    if (deschis) delete scena.dataset.sertar;
+    else scena.dataset.sertar = 'inchis';
+    if (pastila) pastila.hidden = deschis;
+    // Încadrarea ține cont de lățimea panoului, deci se reface.
+    const p = filtre.proiect !== 'toate' ? proiectDupaSlug.get(filtre.proiect) : null;
+    if (p && !modStrada) corecteazaIncadrare(p.hotar);
+  };
+  el<HTMLButtonElement>('inchide-sertar')?.addEventListener('click', () => aratePanou(false));
+  pastila?.addEventListener('click', () => aratePanou(true));
 
   const sertar = el<HTMLElement>('sertar');
   el<HTMLButtonElement>('comuta-sertar')?.addEventListener('click', (e) => {
@@ -1095,36 +1179,74 @@ function reseteazaIntervale() {
     (f) => filtre.proiect === 'toate' || f.properties.proiect === filtre.proiect,
   );
   const sup = set.map((f) => f.properties.suprafata);
-  const pret = set.map((f) => f.properties.pret_total);
-  const cadru = (vals: number[], pas: number) => {
-    const min = Math.floor(Math.min(...vals) / pas) * pas;
-    const max = Math.ceil(Math.max(...vals) / pas) * pas;
-    return [min, max] as const;
-  };
-  const [sMin, sMax] = cadru(sup, 10);
-  const [pMin, pMax] = cadru(pret, 1000);
+  const pas = 10;
+  const sMin = Math.floor(Math.min(...sup) / pas) * pas;
+  const sMax = Math.ceil(Math.max(...sup) / pas) * pas;
 
-  const aplica = (prefix: string, min: number, max: number, pas: number) => {
-    const jos = el<HTMLInputElement>(`${prefix}-min`);
-    const sus = el<HTMLInputElement>(`${prefix}-max`);
-    if (!jos || !sus) return;
+  const jos = el<HTMLInputElement>('sup-min');
+  const sus = el<HTMLInputElement>('sup-max');
+  if (jos && sus) {
     for (const inp of [jos, sus]) {
-      inp.min = String(min);
-      inp.max = String(max);
+      inp.min = String(sMin);
+      inp.max = String(sMax);
       inp.step = String(pas);
     }
-    jos.value = String(min);
-    sus.value = String(max);
+    jos.value = String(sMin);
+    sus.value = String(sMax);
     (jos as HTMLInputElement & { _reset?: () => void })._reset?.();
-  };
-
-  aplica('sup', sMin, sMax, 10);
-  aplica('pret', pMin, pMax, 1000);
+  }
 
   filtre.supMin = sMin;
   filtre.supMax = sMax;
-  filtre.pretMin = pMin;
-  filtre.pretMax = pMax;
+  filtre.pretMin = 0;
+  filtre.pretMax = Infinity;
+
+  construiesteBenzi(set.map((f) => f.properties.pret_total));
+}
+
+/* ------------------------------------------------------------ benzi de buget */
+
+let benziCurente: BandaBuget[] = [];
+
+/**
+ * Benzile se recalculează pe stocul din filtrul curent. Dacă omul a ales
+ * Lacul Vlăsiei, „sub 50.000 €” nu mai spune nimic: acolo pornesc de la
+ * 42.000. Pragurile trebuie să vină din prețurile care chiar sunt pe hartă.
+ */
+function construiesteBenzi(preturi: number[]) {
+  const lista = el<HTMLUListElement>('benzi-buget');
+  if (!lista) return;
+  benziCurente = benziBuget(preturi);
+
+  const rand = (id: string, eticheta: string, min: string, max: string, bifat: boolean) => `
+    <li>
+      <label for="buget-${id}">
+        <input type="radio" name="buget" id="buget-${id}" value="${id}"
+               data-min="${min}" data-max="${max}"${bifat ? ' checked' : ''} />
+        <span class="benzi__bulina" aria-hidden="true"></span>
+        <span class="benzi__text">${eticheta}</span>
+        <span class="benzi__nr cifre" data-nr-buget="${id}">0</span>
+      </label>
+    </li>`;
+
+  lista.innerHTML =
+    rand('toate', 'Toate', '', '', true) +
+    benziCurente
+      .map((b) => rand(b.id, b.eticheta, String(b.min), b.max === Infinity ? '' : String(b.max), false))
+      .join('');
+
+  legaBenziBuget();
+}
+
+function legaBenziBuget() {
+  for (const inp of document.querySelectorAll<HTMLInputElement>('input[name="buget"]')) {
+    inp.addEventListener('change', () => {
+      if (!inp.checked) return;
+      filtre.pretMin = inp.dataset.min ? Number(inp.dataset.min) : 0;
+      filtre.pretMax = inp.dataset.max ? Number(inp.dataset.max) : Infinity;
+      aplicaFiltre();
+    });
+  }
 }
 
 /* ------------------------------------------------------------------ pornire */
@@ -1351,8 +1473,39 @@ function deschideFisaParcelare(slug: string) {
   pune('cp-nume', proiect.nume);
   pune('cp-unde', `${proiect.localitate}, județul ${proiect.judet}`);
   pune('cp-disponibile', `${st.disponibile} din ${st.total} disponibile`);
-  pune('cp-pret', `de la ${euro(st.pret_total_min)} + TVA`);
+  pune('cp-pret', st.pret_total_min ? `de la ${euro(st.pret_total_min)} + TVA` : 'stoc epuizat');
   pune('cp-descriere', proiect.descriere[0] ?? '');
+
+  // Toate loturile, în ordinea de pe teren, cu bulina de stare. La fâșiile de
+  // cinci-șapte loturi asta e chiar oferta întreagă; lista „cele mai ieftine
+  // opt” avea sens doar cât o parcelare avea două sute de loturi.
+  const lista = el('cp-loturi');
+  if (lista) {
+    const aleParcelarii = loturi.features.filter((f) => f.properties.proiect === slug);
+    lista.innerHTML = aleParcelarii
+      .map((f) => {
+        const l = f.properties;
+        const cfg = STATUSURI[l.status];
+        const pret = l.status === 'vandut' ? 'vândut' : l.status === 'in_pregatire' ? 'în curând' : euro(l.pret_total);
+        return `<li><button type="button" data-lot="${l.id}" data-stare="${l.status}" title="${cfg.eticheta}">
+            <span class="bulina" style="--c: ${cfg.culoare}" aria-hidden="true"></span>
+            <span class="cod">Lotul ${l.cod}</span>
+            <span class="sup">${mp(l.suprafata)}</span>
+            <span class="pret">${pret}</span>
+          </button></li>`;
+      })
+      .join('');
+    for (const b of lista.querySelectorAll<HTMLButtonElement>('[data-lot]')) {
+      b.addEventListener('click', () => {
+        const id = b.dataset.lot!;
+        const f = loturi.features.find((x) => x.properties.id === id);
+        const c = centruLot(id);
+        if (!f || !c) return;
+        if (filtre.proiect !== slug) alegeParcelare(slug);
+        deschideLot(f.properties, c);
+      });
+    }
+  }
 
   const ul = el('cp-utilitati');
   if (ul) {
@@ -1364,39 +1517,63 @@ function deschideFisaParcelare(slug: string) {
       .join('');
   }
 
-  // Cele mai ieftine loturi libere: e prima întrebare, iar la 213 loturi o
-  // listă întreagă în fișă n-ar ajuta pe nimeni.
-  const lista = el('cp-loturi');
-  if (lista) {
-    const ieftine = loturi.features
-      .filter((f) => f.properties.proiect === slug && f.properties.status === 'disponibil')
-      .sort((a, b) => a.properties.pret_total - b.properties.pret_total)
-      .slice(0, 8);
-    lista.innerHTML = ieftine
-      .map(
-        (f) =>
-          `<li><button type="button" data-lot="${f.properties.id}">${f.properties.cod} <em>${euro(f.properties.pret_total)}</em></button></li>`,
-      )
-      .join('');
-    for (const b of lista.querySelectorAll<HTMLButtonElement>('[data-lot]')) {
-      b.addEventListener('click', () => {
-        const id = b.dataset.lot!;
-        const f = loturi.features.find((x) => x.properties.id === id);
-        const c = centruLot(id);
-        if (!f || !c) return;
-        inchideFisaParcelare();
-        alegeParcelare(slug);
-        window.setTimeout(() => deschideLot(f.properties, c), 1500);
-      });
-    }
-  }
+  const suna = el<HTMLAnchorElement>('cp-suna');
+  if (suna) suna.href = FIRMA.telefonLink;
 
   const pagina = el<HTMLAnchorElement>('cp-pagina');
-  if (pagina) pagina.href = cale(`/parcelari/${slug}`);
+  if (pagina) {
+    pagina.href = cale(`/parcelari/${slug}`);
+    pagina.hidden = !arePagina.has(slug);
+  }
 
   card.hidden = false;
   card.scrollTop = 0;
   marcheazaFisa(true);
+}
+
+/* ------------------------------------------ pinurile de preț ale loturilor */
+
+/**
+ * Fiecare lot poartă prețul pe hartă.
+ *
+ * E singura schimbare care mută harta din „planșă frumoasă” în „ofertă”: prima
+ * întrebare a omului nu e ce cod are lotul, e cât costă. Referința din piață
+ * face același lucru și e partea care îi funcționează.
+ *
+ * Semnul apare abia când lotul e mai mare decât el pe ecran. Sub pragul ăsta
+ * ar fi o etichetă plutind peste un dreptunghi de doi pixeli, adică zgomot.
+ */
+interface PinPret {
+  p: ProprietatiLot;
+  centru: [number, number];
+  marker: Marker;
+}
+
+const pinuriPret: PinPret[] = [];
+const ZOOM_PRET = 15.6;
+
+function construiestePinuriPret() {
+  for (const x of pinuriPret) x.marker.remove();
+  pinuriPret.length = 0;
+
+  for (const f of loturi.features) {
+    const c = centruLot(f.properties.id);
+    if (!c) continue;
+    const nod = elementPinPret(f.properties);
+    nod.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      deschideLot(f.properties, c);
+    });
+    nod.addEventListener('mouseenter', () => seteazaHover(f.properties.id));
+    nod.addEventListener('mouseleave', () => seteazaHover(null));
+    pinuriPret.push({
+      p: f.properties,
+      centru: c,
+      marker: new Marker({ element: nod, anchor: 'bottom', offset: [0, -5] })
+        .setLngLat(c)
+        .addTo(harta),
+    });
+  }
 }
 
 /** Cutia pe care o ocupă un pin pe ecran, după cât din el e afișat. */
@@ -1411,6 +1588,11 @@ function cutiaPin(x: number, y: number, forma: 'plin' | 'fara-nume' | 'mic') {
 }
 
 type Cutie = ReturnType<typeof cutiaPin>;
+
+function cutiaPret(x: number, y: number, mic: boolean) {
+  const dim = mic ? { l: 20, i: 20 } : { l: 80, i: 46 };
+  return { s: x - dim.l / 2, d: x + dim.l / 2, sus: y - dim.i, jos: y };
+}
 
 function seLoveste(a: Cutie, b: Cutie) {
   return a.s < b.d && a.d > b.s && a.sus < b.jos && a.jos > b.sus;
@@ -1429,7 +1611,7 @@ let ceasPinuri = 0;
  *    până nu se mai citește niciunul.
  */
 function actualizeazaPinuri() {
-  if (!pinuri.length) return;
+  if (!pinuri.length && !pinuriPret.length) return;
   if (ceasPinuri) return;
   ceasPinuri = requestAnimationFrame(() => {
     ceasPinuri = 0;
@@ -1483,6 +1665,50 @@ function asazaPinuri() {
     ocupate.push(cutie);
     v.nod.classList.toggle('pin--fara-nume', forma !== 'plin');
     v.nod.classList.toggle('pin--mic', forma === 'mic');
+    const parinte = v.nod.parentElement;
+    if (parinte) parinte.style.zIndex = String(strat--);
+  }
+
+  asazaPinuriPret(z, ocupate);
+}
+
+/**
+ * Pinurile de preț se așază în aceeași hartă de ocupare ca semnele de
+ * proprietate, ca să nu se calce între ele. Când doi vecini nu încap, cel de
+ * dedesubt se strânge la o bulină: rămâne vizibil unde e lotul, dar cedează
+ * prețul vecinului. Ordinea e după preț, ca lotul mai ieftin să fie cel care
+ * își păstrează eticheta.
+ */
+function asazaPinuriPret(z: number, ocupate: Cutie[]) {
+  if (!pinuriPret.length) return;
+
+  const vizibile: { nod: HTMLElement; x: number; y: number; ordine: number }[] = [];
+
+  for (const { p, centru, marker } of pinuriPret) {
+    const nod = marker.getElement();
+    const ascuns = z < ZOOM_PRET || Boolean(modStrada) || !treceFiltrele(p);
+    nod.classList.toggle('pin-pret--ascuns', ascuns);
+    nod.classList.toggle('pin-pret--deschis', lotSelectat === p.id);
+    if (ascuns) continue;
+    const punct = harta.project(centru);
+    vizibile.push({
+      nod,
+      x: punct.x,
+      y: punct.y,
+      // Disponibilul înaintea vândutului, apoi cel mai ieftin înaintea celui scump.
+      ordine: (p.status === 'disponibil' ? 0 : 1e9) + p.pret_total,
+    });
+  }
+
+  vizibile.sort((a, b) => a.ordine - b.ordine);
+
+  let strat = 300;
+  for (const v of vizibile) {
+    let cutie = cutiaPret(v.x, v.y, false);
+    const mic = ocupate.some((o) => seLoveste(cutie, o));
+    if (mic) cutie = cutiaPret(v.x, v.y, true);
+    ocupate.push(cutie);
+    v.nod.classList.toggle('pin-pret--mic', mic);
     const parinte = v.nod.parentElement;
     if (parinte) parinte.style.zIndex = String(strat--);
   }
@@ -1587,6 +1813,7 @@ async function porneste() {
   const pinuriGenerate = (raspunsPinuri.ok ? await raspunsPinuri.json() : []) as Pin[];
   // Peste datele generate la build punem ce s-a publicat din panou.
   const depozit = citesteDepozit();
+  adaugaProiecteNoi(depozit.proiecteNoi);
   loturi = aplicaModificari(generate, depozit) as ColectieLoturi;
   calculeazaOrdinea(loturi);
   const nrModificari = numaraModificari(depozit);
@@ -1650,7 +1877,11 @@ async function porneste() {
     if (!lotInitial && !redusa()) pragDezvaluire = 0;
     adaugaStraturi();
     construiestePinuri(pinuriGenerate);
+    construiestePinuriPret();
     harta.on('zoom', actualizeazaPinuri);
+    // Și la deplasare, nu doar la zoom: coliziunile se calculează în pixeli,
+    // deci se schimbă și când harta se rotește sau se trage.
+    harta.on('move', actualizeazaPinuri);
     document.getElementById('harta-incarcare')?.setAttribute('hidden', '');
 
     if (lotInitial) {

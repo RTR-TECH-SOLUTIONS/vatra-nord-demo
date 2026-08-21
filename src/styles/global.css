@@ -457,6 +457,132 @@
     transform: scale(0.9);
   }
 
+  /* ------------------------------------------------- pinul de preț al lotului */
+  /*
+    Semnul care spune cât costă lotul, direct pe hartă. Culorile sunt vii,
+    spre deosebire de restul paletei: aici culoarea nu decorează, semnalizează,
+    iar un semnal stins nu se vede peste fotografie aeriană.
+
+    Vândutul păstrează culoarea tare, dar pierde prețul și se face mai mic:
+    rămâne informație („aici nu mai e nimic de luat”), nu ofertă.
+  */
+  .pin-pret {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1px;
+    padding: 4px 9px 5px;
+    border: 0;
+    border-bottom: 2px solid var(--talpa);
+    border-radius: 7px;
+    background: var(--fond);
+    color: var(--text);
+    font: inherit;
+    line-height: 1.1;
+    cursor: pointer;
+    white-space: nowrap;
+    box-shadow:
+      0 0 0 1.5px rgb(255 255 255 / 0.75),
+      0 2px 6px rgb(0 0 0 / 0.28);
+    transform-origin: bottom center;
+    transition:
+      transform 140ms ease-out,
+      filter 140ms ease-out;
+  }
+
+  .pin-pret__cod {
+    font-family: var(--font-sans);
+    font-size: 0.5625rem;
+    font-weight: 500;
+    letter-spacing: 0.04em;
+    opacity: 0.82;
+  }
+
+  .pin-pret__val {
+    font-family: var(--font-mono);
+    font-size: 0.8125rem;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+
+  /* Acul: un colț rotit sub semn, în aceeași culoare cu talpa, ca semnul să
+     pară așezat pe lot, nu lipit peste el. */
+  .pin-pret__ac {
+    position: absolute;
+    left: 50%;
+    bottom: -5px;
+    width: 8px;
+    height: 8px;
+    transform: translateX(-50%) rotate(45deg);
+    background: var(--talpa);
+    border-radius: 1px;
+  }
+
+  .pin-pret[data-stare='vandut'],
+  .pin-pret[data-stare='in_pregatire'] {
+    padding: 3px 8px 4px;
+    opacity: 0.94;
+  }
+
+  .pin-pret[data-stare='vandut'] .pin-pret__val,
+  .pin-pret[data-stare='in_pregatire'] .pin-pret__val {
+    font-family: var(--font-sans);
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+  }
+
+  .pin-pret:hover,
+  .pin-pret:focus-visible {
+    transform: scale(1.06);
+    filter: saturate(1.1);
+  }
+
+  .pin-pret:focus-visible {
+    outline: 2px solid var(--color-ink);
+    outline-offset: 3px;
+  }
+
+  .pin-pret--deschis {
+    transform: scale(1.08);
+    box-shadow:
+      0 0 0 2px var(--color-ink),
+      0 3px 10px rgb(0 0 0 / 0.35);
+  }
+
+  /* Forma strânsă, când doi vecini se calcă: rămâne doar bulina de stare. */
+  .pin-pret--mic {
+    padding: 0;
+    width: 13px;
+    height: 13px;
+    border: 2px solid rgb(255 255 255 / 0.92);
+    border-radius: 50%;
+    box-shadow: 0 1px 3px rgb(0 0 0 / 0.35);
+  }
+
+  .pin-pret--mic .pin-pret__cod,
+  .pin-pret--mic .pin-pret__val,
+  .pin-pret--mic .pin-pret__ac {
+    display: none;
+  }
+
+  /* Aceeași poveste ca la pinurile de proprietate: MapLibre scrie `opacity`
+     inline pe marker, deci ascunderea trebuie făcută pe `visibility`. */
+  .pin-pret--ascuns {
+    visibility: hidden;
+    pointer-events: none;
+  }
+
+  @media (max-width: 767px) {
+    .pin-pret {
+      padding: 3px 7px 4px;
+    }
+    .pin-pret__val {
+      font-size: 0.75rem;
+    }
+  }
+
   /* Pinul aflat în editare, în panou. */
   .pin--activ .pin__disc {
     outline: 2px solid var(--color-ink);

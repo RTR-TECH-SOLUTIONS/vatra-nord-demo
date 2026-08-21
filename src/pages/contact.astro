@@ -1,10 +1,16 @@
 ---
 import Baza from '../layouts/Baza.astro';
 import proiecteJson from '../data/proiecte.json';
-import type { Proiect } from '../lib/loturi';
+import loturiJson from '../data/loturi.json';
+import type { Proiect, ProprietatiLot } from '../lib/loturi';
+import { STATUSURI, euro, mp } from '../lib/loturi';
 import { FIRMA } from '../lib/firma';
 
 const proiecte = proiecteJson as unknown as Proiect[];
+const loturi = (loturiJson as unknown as { features: { properties: ProprietatiLot }[] }).features
+  .map((f) => f.properties)
+  .filter((p) => STATUSURI[p.status].vandabil);
+const numeProiect = new Map(proiecte.map((p) => [p.slug, p.nume]));
 ---
 
 <Baza
@@ -19,6 +25,33 @@ const proiecte = proiecteJson as unknown as Proiect[];
           Vizionările se fac doar cu programare. Venim pe teren cu planul de parcelare și îți arătăm
           bornele lotului care te interesează, ca să vezi exact ce cumperi.
         </p>
+
+        <!-- Telefonul și WhatsApp-ul stau înaintea oricărui text: în nișa asta,
+             nouă din zece oameni sună, nu completează formulare. -->
+        <div class="actiuni-mari">
+          <a class="buton buton-primar" href={FIRMA.telefonLink}>Sună la {FIRMA.telefon}</a>
+          <a class="buton buton-secundar" href={FIRMA.whatsapp} rel="noopener">Scrie pe WhatsApp</a>
+        </div>
+
+        <!-- Ce urmează după ce sună. Concurența se oprește la butoane; aici
+             omul știe din start că nu-l sună nimeni de zece ori. -->
+        <ol class="pasi">
+          <li>
+            <b>Vorbim la telefon.</b>
+            <span>Îți spunem ce loturi sunt libere, la ce preț și ce urmează cu utilitățile. Fără
+            programare la prima discuție.</span>
+          </li>
+          <li>
+            <b>Mergem pe teren.</b>
+            <span>Cu planul de parcelare și cu extrasul de carte funciară în mână. Îți arătăm
+            bornele lotului și limitele cu vecinii.</span>
+          </li>
+          <li>
+            <b>Rezervăm lotul.</b>
+            <span>Îl scoatem de pe hartă pe numele tău până la semnarea antecontractului. Prețul
+            din ziua rezervării rămâne prețul din contract.</span>
+          </li>
+        </ol>
 
         <div class="fisa">
           <div>
@@ -74,9 +107,21 @@ const proiecte = proiecteJson as unknown as Proiect[];
             </select>
           </div>
 
+          <!-- Lista de loturi libere, nu un câmp gol: omul nu trebuie să știe
+               codul pe de rost, iar noi primim o cerere care se poate lega de
+               inventar. -->
           <div class="camp">
-            <label for="lot">Lot (opțional)</label>
-            <input type="text" id="lot" name="lot" placeholder="ex. B14" />
+            <label for="lot">Lotul care te interesează</label>
+            <select id="lot" name="lot">
+              <option value="">Nu m-am hotărât încă</option>
+              {
+                loturi.map((l) => (
+                  <option value={l.id} data-proiect={l.proiect}>
+                    Lotul {l.cod}, {numeProiect.get(l.proiect)} · {mp(l.suprafata)} · {euro(l.pret_total)}
+                  </option>
+                ))
+              }
+            </select>
           </div>
 
           <div class="camp">
@@ -120,11 +165,27 @@ const proiecte = proiecteJson as unknown as Proiect[];
   const p = new URLSearchParams(window.location.search);
   const lot = p.get('lot');
   const parcelare = p.get('parcelare');
-  if (lot) (document.getElementById('lot') as HTMLInputElement).value = lot.split('-').pop()?.toUpperCase() ?? '';
-  if (parcelare) {
-    const select = document.getElementById('interes') as HTMLSelectElement;
-    if ([...select.options].some((o) => o.value === parcelare)) select.value = parcelare;
+  const selectLot = document.getElementById('lot') as HTMLSelectElement | null;
+  const selectInteres = document.getElementById('interes') as HTMLSelectElement | null;
+  if (lot && selectLot && [...selectLot.options].some((o) => o.value === lot)) selectLot.value = lot;
+  if (parcelare && selectInteres && [...selectInteres.options].some((o) => o.value === parcelare)) {
+    selectInteres.value = parcelare;
   }
+
+  // Alegerea parcelării restrânge lista de loturi la ale ei: altfel omul caută
+  // printre toate loturile din portofoliu ca să-l găsească pe al lui.
+  function filtreazaLoturile() {
+    if (!selectLot || !selectInteres) return;
+    const slug = selectInteres.value;
+    for (const o of selectLot.options) {
+      if (!o.value) continue;
+      o.hidden = Boolean(slug) && o.dataset.proiect !== slug;
+    }
+    const ales = selectLot.selectedOptions[0];
+    if (ales?.hidden) selectLot.value = '';
+  }
+  selectInteres?.addEventListener('change', filtreazaLoturile);
+  filtreazaLoturile();
 </script>
 
 <style>
@@ -163,6 +224,61 @@ const proiecte = proiecteJson as unknown as Proiect[];
     font-size: 1.0625rem;
     color: var(--color-ink-2);
     max-width: 34rem;
+  }
+
+  /* --------------------------------------------------- acțiunile principale */
+  .actiuni-mari {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.625rem;
+    margin-bottom: 2rem;
+  }
+
+  .actiuni-mari .buton {
+    font-size: 1rem;
+    padding: 0.7rem 1.25rem;
+  }
+
+  /* ------------------------------------------------------------- cei trei pași */
+  .pasi {
+    counter-reset: pas;
+    display: grid;
+    gap: 1.25rem;
+    margin-bottom: 2.5rem;
+    max-width: 34rem;
+  }
+
+  .pasi li {
+    counter-increment: pas;
+    display: grid;
+    grid-template-columns: 1.75rem 1fr;
+    gap: 0.25rem 0.875rem;
+    align-items: baseline;
+  }
+
+  .pasi li::before {
+    content: counter(pas);
+    grid-row: span 2;
+    font-family: var(--font-mono);
+    font-size: 0.8125rem;
+    color: var(--color-ink-3);
+    border: 1px solid var(--color-hairline);
+    border-radius: 50%;
+    width: 1.75rem;
+    height: 1.75rem;
+    display: grid;
+    place-content: center;
+  }
+
+  .pasi b {
+    font-weight: 500;
+  }
+
+  .pasi span {
+    grid-column: 2;
+    font-size: 0.9375rem;
+    line-height: 1.55;
+    color: var(--color-ink-2);
   }
 
   .fisa__cheie {

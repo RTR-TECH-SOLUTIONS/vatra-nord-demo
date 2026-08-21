@@ -3,9 +3,14 @@
  * folosesc două scripturi: cel care descarcă obstacolele din OSM și cel care
  * generează datele.
  *
- * `teren` e hotarul real, trasat pe imaginea satelitară; unde o latură e un
- * drum, punctele vin din geometria OSM a drumului. `ancora` e indicele laturii
- * de care se aliniază rândurile de loturi.
+ * `teren` e tarlaua întreagă, trasată pe imaginea satelitară. Din ea se vinde
+ * doar o felie: `felie` spune de care drum real se lipește parcelarea și cât
+ * ține de-a lungul lui. Un dezvoltator mic nu scoate la vânzare cinci hectare
+ * deodată, scoate o fâșie cu deschidere la drum, cu cinci-șapte loturi. Prima
+ * variantă tăia toată tarlaua în două sute de dreptunghiuri și harta devenea
+ * ilizibilă exact acolo unde trebuia să convingă.
+ *
+ * `ancora` a rămas pentru că din ea se deduce în ce parte a drumului e câmpul.
  */
 export const PARCELARI = [
   {
@@ -15,7 +20,7 @@ export const PARCELARI = [
     judet: 'Ilfov',
     // Hotarul tarlalei, trasat pe imaginea satelitară: latura 0 e limita dintre
     // câmpul verde și cel arat, latura 2 e drumul comunal (way OSM 27861542),
-    // de care se lipesc rândurile.
+    // de care se lipesc loturile.
     teren: [
       [26.041143, 44.611126],
       [26.047625, 44.613346],
@@ -23,11 +28,13 @@ export const PARCELARI = [
       [26.043459, 44.608253],
     ],
     ancora: 2,
-    front: 17,
-    adancime: 32,
-    drumInterior: 8,
+    // Fâșia scoasă la vânzare: 144 m de front la drumul comunal.
+    felie: { punct: [26.046494, 44.609263], clase: ['residential'], lungime: 144, retras: 9 },
+    front: 20,
+    adancime: 38,
+    retragere: 2,
     seed: 1071,
-    mix: { vandut: 0.58, rezervat: 0.06, in_pregatire: 0.04 },
+    mix: { vandut: 0.43, rezervat: 0.14, in_pregatire: 0 },
     pretMp: [65, 85],
     bearingCamera: -32,
     distante: [
@@ -39,16 +46,16 @@ export const PARCELARI = [
     urbanism: { instrument: 'PUZ aprobat prin HCL 41/2024', pot: 30, cut: 1.0, regim: 'P+1E+M', frontMinim: 14 },
     utilitati: [
       { tip: 'Curent electric', stare: 'la lot', detaliu: 'branșament individual de 15 kW, rețea pusă în funcțiune în martie 2026' },
-      { tip: 'Gaz', stare: 'în stradă', detaliu: 'conductă pe drumul principal, racordul rămâne în sarcina cumpărătorului' },
+      { tip: 'Gaz', stare: 'în stradă', detaliu: 'conductă pe drumul comunal, racordul rămâne în sarcina cumpărătorului' },
       { tip: 'Apă', stare: 'la lot', detaliu: 'rețea proprie, foraj de 82 m, contorizare individuală' },
       { tip: 'Canalizare', stare: 'proiectat', detaliu: 'stație de epurare proprie, recepție estimată în trimestrul 4 din 2026' },
       { tip: 'Internet', stare: 'în zonă', detaliu: 'fibră optică pe drumul de acces' },
-      { tip: 'Drum', stare: 'la lot', detaliu: '8 m lățime, piatră concasată compactată, deszăpezire inclusă' },
+      { tip: 'Drum', stare: 'la lot', detaliu: 'drum comunal asfaltat, cu deschidere directă din fiecare lot' },
     ],
     descriere: [
-      'Corbeanca Nord e cea mai veche parcelare din portofoliu. Terenul a fost dezmembrat în 2024, imediat după aprobarea PUZ-ului, iar drumurile interioare au fost trasate și compactate în două etape, în vara lui 2025 și în primăvara lui 2026.',
-      'Loturile sunt orientate pe axa drumului comunal, deci fiecare are deschidere directă la stradă și niciunul nu depinde de servitute de trecere. Prima bandă, cea dinspre intrare, s-a vândut integral în 2025.',
-      'Stocul rămas e concentrat în benzile dinspre vest. Ultima bandă intră în vânzare după recepția stației de epurare.',
+      'Corbeanca Nord e cea mai veche fâșie din portofoliu. Terenul a fost dezmembrat în 2024, imediat după aprobarea PUZ-ului, iar loturile au ieșit toate cu deschidere directă la drumul comunal, fără servitute de trecere și fără drum interior de întreținut.',
+      'Sunt șapte loturi, nu o parcelare de sute. Fiecare are între 700 și 800 de metri pătrați, cu front de circa 20 de metri liniari, adică fix cât cere regimul P+1E+M fără derogare.',
+      'Primele loturi s-au vândut în 2025, la vecinii care voiau să-și mărească curtea. Ce a rămas e capătul dinspre vest, cel mai apropiat de intrarea în sat.',
     ],
   },
   {
@@ -56,9 +63,8 @@ export const PARCELARI = [
     nume: 'Săftica',
     localitate: 'Balotești',
     judet: 'Ilfov',
-    // Hotarul tarlalei, trasat pe imaginea satelitară. Latura 5 e limita de vest;
-    // de ea se lipesc rândurile, pentru că pe direcția aia tarlaua e cea mai
-    // regulată și se pierde cel mai puțin teren la decupare.
+    // Hotarul tarlalei. Latura 3 merge de-a lungul drumului dinspre sat, de care
+    // se lipește fâșia scoasă la vânzare.
     teren: [
       [26.05886, 44.618604],
       [26.06208, 44.618789],
@@ -67,12 +73,16 @@ export const PARCELARI = [
       [26.061235, 44.615108],
       [26.058698, 44.616081],
     ],
-    ancora: 5,
-    front: 18,
-    adancime: 33,
-    drumInterior: 9,
+    ancora: 3,
+    // Deplasarea de 30 m ocolește accesul care taie fâșia în dreptul punctului
+    // de reper: fără ea, un lot ieșea cu șase laturi și nouă metri la stradă,
+    // adică un lot pe care nu-l cumpără nimeni.
+    felie: { punct: [26.063706, 44.615212], clase: ['residential'], lungime: 124, retras: 9, deplasare: 30 },
+    front: 20,
+    adancime: 36,
+    retragere: 2,
     seed: 2264,
-    mix: { vandut: 0.12, rezervat: 0.09, in_pregatire: 0.11 },
+    mix: { vandut: 0.17, rezervat: 0.17, in_pregatire: 0 },
     pretMp: [55, 70],
     bearingCamera: 0,
     distante: [
@@ -84,16 +94,16 @@ export const PARCELARI = [
     urbanism: { instrument: 'PUZ aprobat prin HCL 118/2025', pot: 30, cut: 1.0, regim: 'P+1E+M', frontMinim: 16 },
     utilitati: [
       { tip: 'Curent electric', stare: 'în stradă', detaliu: 'post de transformare montat, branșamentele sunt în execuție' },
-      { tip: 'Gaz', stare: 'la lot', detaliu: 'conductă de distribuție pe toate drumurile interioare' },
+      { tip: 'Gaz', stare: 'la lot', detaliu: 'conductă de distribuție pe drumul din fața loturilor' },
       { tip: 'Apă', stare: 'în stradă', detaliu: 'racord la rețeaua comunei Balotești' },
       { tip: 'Canalizare', stare: 'în stradă', detaliu: 'racord la rețeaua comunei, cămine individuale turnate' },
       { tip: 'Internet', stare: 'în zonă', detaliu: null },
-      { tip: 'Drum', stare: 'la lot', detaliu: '9 m lățime, asfaltat pe tronsonul de intrare, restul piatră compactată' },
+      { tip: 'Drum', stare: 'la lot', detaliu: 'drum sătesc, asfaltat pe tronsonul dinspre DN1' },
     ],
     descriere: [
-      'Săftica e la 600 de metri de DN1, pe partea dinspre Therme, într-o zonă în care comuna Balotești a extins deja rețelele de apă și canalizare. Parcelarea s-a deschis în iulie 2026.',
-      'Loturile au front de minimum 16 metri liniari, ceea ce permite regimul P+1E+M fără derogare. Drumurile interioare au 9 metri, iar tronsonul de intrare a fost asfaltat înainte de prima vânzare.',
-      'Fiind la începutul vânzării, stocul e aproape complet. Ultimele două benzi, cele dinspre limita de nord, se deschid după finalizarea branșamentelor electrice.',
+      'Săftica e la 600 de metri de DN1, pe partea dinspre Therme, într-o zonă în care comuna Balotești a extins deja rețelele de apă și canalizare. Fâșia s-a deschis la vânzare în iulie 2026.',
+      'Sunt șase loturi așezate în linie, toate cu ieșire la drumul dinspre sat. Frontul e de minimum 16 metri liniari, deci regimul P+1E+M se obține fără derogare.',
+      'Fiind la începutul vânzării, aproape tot stocul e liber. Restul tarlalei rămâne câmp: se scoate la vânzare abia după ce se închide fâșia asta.',
     ],
   },
   {
@@ -101,9 +111,8 @@ export const PARCELARI = [
     nume: 'Lacul Vlăsiei',
     localitate: 'Balotești',
     judet: 'Ilfov',
-    // Aici nu e drum la limită, ci hotarul tarlalei, trasat pe imaginea
-    // satelitară: latura de nord, apoi perdeaua de arbori la vest și drumul de
-    // exploatare la sud. Rândurile se aliniază la latura 0.
+    // Latura 5 merge de-a lungul drumului de exploatare dinspre vale, care e și
+    // accesul fâșiei scoase la vânzare.
     teren: [
       [26.083528, 44.632241],
       [26.091636, 44.632355],
@@ -112,13 +121,13 @@ export const PARCELARI = [
       [26.08553, 44.62647],
       [26.083447, 44.627154],
     ],
-    ancora: 0,
-    benzi: 5,
-    front: 19,
-    adancime: 35,
-    drumInterior: 8,
+    ancora: 5,
+    felie: { punct: [26.08442, 44.62932], clase: ['track', 'residential'], lungime: 121, retras: 8, deplasare: 30 },
+    front: 23,
+    adancime: 42,
+    retragere: 2,
     seed: 3389,
-    mix: { vandut: 0.05, rezervat: 0.04, in_pregatire: 0.58 },
+    mix: { vandut: 0, rezervat: 0.2, in_pregatire: 0.2 },
     pretMp: [45, 60],
     bearingCamera: -32,
     distante: [
@@ -134,12 +143,12 @@ export const PARCELARI = [
       { tip: 'Apă', stare: 'la lot', detaliu: 'foraj propriu de 74 m, rezervor tampon de 40 mc' },
       { tip: 'Canalizare', stare: 'proiectat', detaliu: 'fose ecologice individuale până la extinderea rețelei comunei' },
       { tip: 'Internet', stare: 'în zonă', detaliu: null },
-      { tip: 'Drum', stare: 'la lot', detaliu: '8 m lățime, piatră concasată, două intrări din drumul județean' },
+      { tip: 'Drum', stare: 'la lot', detaliu: 'drum de exploatare pietruit, lățit la 8 m în primăvara lui 2026' },
     ],
     descriere: [
-      'Lacul Vlăsiei are cele mai mari loturi din portofoliu și e singura parcelare unde frontul minim de 18 metri liniari e regulă, nu excepție. Terenul coboară lin către salba de lacuri de pe valea Cociovaliștei.',
-      'POT-ul de 25% și CUT-ul de 0,9 sunt mai restrictive decât în celelalte parcelări, ceea ce ține densitatea jos și păstrează curțile generoase.',
-      'Vânzarea e la început. Majoritatea loturilor sunt încă în pregătire, în așteptarea recepției drumurilor interioare, programată pentru toamna lui 2026.',
+      'Lacul Vlăsiei are cele mai mari loturi din portofoliu, aproape o mie de metri pătrați fiecare, și e singurul loc unde frontul de 18 metri liniari e regulă, nu excepție. Terenul coboară lin către salba de lacuri de pe valea Cociovaliștei.',
+      'Sunt cinci loturi, așezate pe drumul de exploatare pe care l-am lățit la 8 metri și l-am pietruit în primăvara lui 2026. POT-ul de 25% și CUT-ul de 0,9 sunt mai restrictive decât în rest, ceea ce ține densitatea jos și păstrează curțile generoase.',
+      'Vânzarea e la început. Două loturi sunt încă în pregătire, în așteptarea recepției drumului, programată pentru toamna lui 2026.',
     ],
   },
 ];
