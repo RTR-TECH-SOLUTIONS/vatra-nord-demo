@@ -203,15 +203,23 @@ const STARE_CA_STATUS: Record<StarePin, StatusLot> = {
  * Cât timp filtrele stăteau doar pe loturi, două treimi din listă nu reacționau
  * la nimic și părea că filtrele nu merg.
  */
+/** A ales omul o bandă de buget, sau e tot pe „Toate”? */
+function bugetPus(): boolean {
+  return filtre.pretMin > 0 || filtre.pretMax !== Infinity;
+}
+
+/** A mișcat cineva capetele sliderului de suprafață? */
+function suprafataPusa(): boolean {
+  return filtre.supMin > filtre.supMinTot || filtre.supMax < filtre.supMaxTot;
+}
+
 function treceFiltrelePin(pin: Pin): boolean {
   if (!filtre.statusuri.has(STARE_CA_STATUS[pin.stare])) return false;
 
   const total = pretTotalPin(pin);
-  const bugetPus = filtre.pretMin > 0 || filtre.pretMax !== Infinity;
-  if (bugetPus && total !== null && (total < filtre.pretMin || total >= filtre.pretMax)) return false;
+  if (bugetPus() && total !== null && (total < filtre.pretMin || total >= filtre.pretMax)) return false;
 
-  const supPusa = filtre.supMin > filtre.supMinTot || filtre.supMax < filtre.supMaxTot;
-  if (supPusa && pin.suprafata && (pin.suprafata < filtre.supMin || pin.suprafata > filtre.supMax)) {
+  if (suprafataPusa() && pin.suprafata && (pin.suprafata < filtre.supMin || pin.suprafata > filtre.supMax)) {
     return false;
   }
   return true;
@@ -1669,9 +1677,25 @@ function construiestePinuriPret() {
   }
 }
 
-/** Are parcelarea vreun lot care trece de filtrele curente? */
+/**
+ * Are parcelarea vreun lot care trece de filtre?
+ *
+ * Filtrul de parcelare nu se numără aici: el spune ce se vede pe hartă, nu ce
+ * mai există. Dacă l-am număra, alegerea Săfticii ar șterge din listă celelalte
+ * două parcelări, adică exact rândurile pe care le apeși ca să te întorci.
+ */
 function parcelareaAreLoturi(slug: string): boolean {
-  return loturi.features.some((f) => f.properties.proiect === slug && treceFiltrele(f.properties));
+  return loturi.features.some((f) => {
+    const p = f.properties;
+    if (p.proiect !== slug) return false;
+    if (!filtre.statusuri.has(p.status)) return false;
+    // Suprafața și bugetul se numără doar dacă omul le-a atins: intervalul se
+    // recalibrează pe parcelarea aleasă, deci celelalte două ar cădea singure
+    // din listă în clipa în care alegi una.
+    if (suprafataPusa() && (p.suprafata < filtre.supMin || p.suprafata > filtre.supMax)) return false;
+    if (bugetPus() && (p.pret_total < filtre.pretMin || p.pret_total > filtre.pretMax)) return false;
+    return true;
+  });
 }
 
 /** Cutia pe care o ocupă un pin pe ecran, după cât din el e afișat. */
