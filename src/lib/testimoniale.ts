@@ -50,11 +50,16 @@ export function lunaRo(data: string | null): string | null {
   return `${LUNI[i]} ${an}`;
 }
 
-/** Linia de sub citat: numai bucățile care chiar există. */
+/**
+ * Linia cu datele lotului: numai bucățile care chiar există.
+ *
+ * Numele și orașul nu intră aici, pentru că stau deja în capul cardului. Cât
+ * timp linia era singura, le purta pe toate; acum ar fi al doilea rând care
+ * repetă primul.
+ */
 export function randDate(t: Testimonial, numeParcelare?: string | null): string {
-  const bucati = [t.nume];
-  if (t.localitate) bucati.push(t.localitate);
-  if (t.lot) bucati.push(numeParcelare ? `lotul ${t.lot}, ${numeParcelare}` : `lotul ${t.lot}`);
+  const bucati: string[] = [];
+  if (t.lot) bucati.push(numeParcelare ? `Lotul ${t.lot}, ${numeParcelare}` : `Lotul ${t.lot}`);
   if (t.suprafata) bucati.push(`${t.suprafata} m²`);
   const cand = lunaRo(t.data);
   if (cand) bucati.push(`cumpărat în ${cand}`);

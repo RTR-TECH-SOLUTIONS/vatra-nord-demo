@@ -44,9 +44,15 @@ export interface Depozit {
    * pagini statice și fotografii, deci nu se rescriu din browser.
    */
   proiecteNoi: Proiect[];
+  /**
+   * Pozele de prezentare ale fiecărei parcelări, pe slug: cel mult trei, în
+   * ordinea din galeria de sus a paginii. Locurile goale rămân `null`, ca a
+   * doua poză să nu urce în locul primei când e ștearsă.
+   */
+  pozeParcelare: Record<string, (string | null)[]>;
 }
 
-const GOL: Depozit = { versiune: 1, actualizat: null, modificari: {}, adaugate: [], sterse: [], pinuri: null, testimoniale: null, proiecteNoi: [] };
+const GOL: Depozit = { versiune: 1, actualizat: null, modificari: {}, adaugate: [], sterse: [], pinuri: null, testimoniale: null, proiecteNoi: [], pozeParcelare: {} };
 
 function areBrowser() {
   return typeof window !== 'undefined' && typeof window.localStorage !== 'undefined';
@@ -70,9 +76,10 @@ export function citeste(): Depozit {
       pinuri: d.pinuri ?? null,
       testimoniale: d.testimoniale ?? null,
       proiecteNoi: d.proiecteNoi ?? [],
+      pozeParcelare: d.pozeParcelare ?? {},
     };
   } catch {
-    return { ...GOL, pinuri: null, testimoniale: null, proiecteNoi: [] };
+    return { ...GOL, pinuri: null, testimoniale: null, proiecteNoi: [], pozeParcelare: {} };
   }
 }
 
@@ -86,6 +93,7 @@ export function scrie(d: Omit<Depozit, 'versiune' | 'actualizat'>): Depozit {
     pinuri: d.pinuri,
     testimoniale: d.testimoniale,
     proiecteNoi: d.proiecteNoi,
+    pozeParcelare: d.pozeParcelare,
   };
   if (areBrowser()) window.localStorage.setItem(CHEIE, JSON.stringify(complet));
   return complet;
@@ -108,7 +116,8 @@ export function numaraModificari(d: Depozit) {
     d.sterse.length +
     (d.pinuri ? 1 : 0) +
     (d.testimoniale ? 1 : 0) +
-    d.proiecteNoi.length
+    d.proiecteNoi.length +
+    Object.values(d.pozeParcelare).flat().filter(Boolean).length
   );
 }
 

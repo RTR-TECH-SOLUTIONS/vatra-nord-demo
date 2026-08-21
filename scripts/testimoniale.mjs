@@ -14,9 +14,11 @@
  * cumpere. Loturile alese sunt cele marcate vândute, ca povestea și inventarul
  * să spună același lucru.
  *
- * Fotografiile sunt brandless, de pe Pexels, alese documentar: casa ridicată pe
- * lot, șantierul, oamenii văzuți de departe pe teren. Niciun portret de studio,
- * pentru că exact acolo se vede că poza e luată de undeva.
+ * Fotografiile sunt brandless și alese documentar: cumpărătorii pe teren văzuți
+ * din spate, lotul gol, casa ridicată după un an. Niciun portret de studio și
+ * niciun cuplu care zâmbește în cameră, pentru că exact acolo se vede că poza e
+ * luată de undeva. La proiectul real intră pozele adevărate de la cumpărători,
+ * încărcate din panou.
  */
 export const TESTIMONIALE = [
   {
@@ -44,8 +46,8 @@ export const TESTIMONIALE = [
     data: '2025-03',
     text:
       'Căutam de vreo jumătate de an și mă săturasem de anunțuri cu poze de acum trei ani. Aici am putut să văd lotul pe satelit înainte să mă duc pe teren, cu deschiderea scrisă pe el. Am mers cu un topograf de-al meu să verific bornele și a ieșit cum scria. Prețul nu s-a mișcat între telefon și notar.',
-    poza: '/imagini/testimoniale/cuplu-pe-camp.jpg',
-    legendaPoza: 'Lotul 3 din Corbeanca Nord, în primăvara lui 2025, înainte de împrejmuire.',
+    poza: '/imagini/testimoniale/pe-lot.jpg',
+    legendaPoza: 'Andrei pe lotul 3 din Corbeanca Nord, în primăvara lui 2025, înainte de împrejmuire.',
   },
   {
     id: 'familia-dobre',
@@ -72,9 +74,7 @@ export const TESTIMONIALE = [
     data: '2026-07',
     text:
       'Am cumpărat de la distanță, din Ploiești, la două săptămâni după ce au scos fâșia la vânzare. Ne-a ajutat mult că vedeam pe hartă exact ce lot e liber și la ce preț, fără să sunăm de fiecare dată. Am venit o singură dată pe teren înainte de contract. Construim la anul, deocamdată am pus doar bornele.',
-    // Fără poză, ca la viața reală: nu orice cumpărător trimite una, iar
-    // secțiunea trebuie să arate bine și așa.
-    poza: null,
-    legendaPoza: null,
+    poza: '/imagini/testimoniale/cumparatori-pe-teren.jpg',
+    legendaPoza: 'Cristina și Radu la prima vizionare pe lotul 1 din Săftica, în iulie 2026.',
   },
 ];

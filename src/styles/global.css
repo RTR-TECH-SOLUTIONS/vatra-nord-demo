@@ -173,17 +173,41 @@
     color: var(--color-antet-text);
   }
 
+  /* Numele e mai lung decât încape pe un telefon îngust lângă cele trei
+     butoane, iar rupt în două rânduri ridica bara. */
+  @media (max-width: 30rem) {
+    .antet__nume {
+      font-size: 0.9375rem;
+      white-space: nowrap;
+    }
+  }
+
   .antet__tagline {
     color: var(--color-antet-sters);
   }
 
+  /* Legătura activă primește o linie sub ea, nu doar altă culoare: pe fond
+     închis, diferența dintre două nuanțe de deschis se pierde. */
   .antet__legatura {
+    position: relative;
     color: var(--color-antet-sters);
   }
 
   .antet__legatura:hover,
   .antet__legatura[aria-current='page'] {
     color: var(--color-antet-text);
+  }
+
+  .antet__legatura[aria-current='page']::after {
+    content: '';
+    position: absolute;
+    left: 12px;
+    right: 12px;
+    bottom: 2px;
+    height: 1.5px;
+    border-radius: 1px;
+    background: var(--color-antet-text);
+    opacity: 0.85;
   }
 
   /* Butonul de telefon iese în față pe fond închis dacă e deschis, nu invers. */
@@ -194,6 +218,18 @@
 
   .buton-antet:hover {
     background: #fff;
+  }
+
+  /* WhatsApp e verdele lui, nu al nostru: e semnul după care se recunoaște
+     butonul dintr-o privire, iar pe o bară verde închis are contrast bun. */
+  .buton-whatsapp {
+    background: #25d366;
+    color: #08301a;
+    font-weight: 600;
+  }
+
+  .buton-whatsapp:hover {
+    background: #34e07a;
   }
 
   .buton-antet-gol {
@@ -305,10 +341,10 @@
   /* Cifra din disc: mai mică decât marca, dar nu ștearsă — e informația
      pentru care omul dă click. */
   .pin__sub {
-    font-size: 8px;
+    font-size: 9px;
     line-height: 1;
-    letter-spacing: 0;
-    color: rgb(255 255 255 / 0.82);
+    letter-spacing: -0.02em;
+    color: rgb(255 255 255 / 0.88);
     white-space: nowrap;
   }
 
@@ -379,6 +415,16 @@
     /* Peste satelit un text cu umbră de hârtie rămâne o pată; peste planșă
        s-ar topi în fond. O pastilă de hârtie se citește pe amândouă. */
     box-shadow: 0 1px 2px rgb(0 0 0 / 0.16);
+  }
+
+  /* A doua linie de pe etichetă: câte loturi mai sunt libere. Stă sub nume,
+     pentru că discul poartă acum prețul. */
+  .pin__nume em {
+    display: block;
+    font-style: normal;
+    font-size: 10px;
+    line-height: 1.2;
+    color: var(--color-ink-3);
   }
 
   .pin--fara-nume .pin__nume {

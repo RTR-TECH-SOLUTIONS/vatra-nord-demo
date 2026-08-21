@@ -5,6 +5,7 @@
   "marca": "SN",
   "stare": "disponibil",
   "detaliu": "1,4 ha, front 62 m la drum comunal",
+  "pretMp": 28,
   "lng": 26.066,
   "lat": 44.627094
  },
@@ -14,6 +15,7 @@
   "marca": "SR",
   "stare": "oferta",
   "detaliu": "6.200 m², intravilan, livadă bătrână",
+  "pretMp": 42,
   "lng": 26.074041,
   "lat": 44.624723
  },
@@ -23,6 +25,7 @@
   "marca": "SV",
   "stare": "disponibil",
   "detaliu": "3 loturi, 520-680 m², curent la limită",
+  "pretMp": 58,
   "lng": 26.057959,
   "lat": 44.624723
  },
@@ -32,6 +35,7 @@
   "marca": "S12",
   "stare": "in_curand",
   "detaliu": "2,1 ha, PUZ depus în iunie 2026",
+  "pretMp": 22,
   "lng": 26.074718,
   "lat": 44.629748
  },
@@ -41,6 +45,7 @@
   "marca": "PN",
   "stare": "disponibil",
   "detaliu": "2 loturi de 900 m², deschidere 22 m",
+  "pretMp": 52,
   "lng": 26.074718,
   "lat": 44.608252
  },
@@ -50,6 +55,7 @@
   "marca": "PI",
   "stare": "disponibil",
   "detaliu": "8.900 m², acces din drumul comunal",
+  "pretMp": 19,
   "lng": 26.066,
   "lat": 44.606589
  },
@@ -59,6 +65,7 @@
   "marca": "DC",
   "stare": "oferta",
   "detaliu": "3.400 m², la 140 m de asfalt",
+  "pretMp": 34,
   "lng": 26.048564,
   "lat": 44.619
  },
@@ -68,6 +75,7 @@
   "marca": "CE",
   "stare": "disponibil",
   "detaliu": "4 loturi, 480-600 m²",
+  "pretMp": 66,
   "lng": 26.0509,
   "lat": 44.625205
  },
@@ -77,6 +85,7 @@
   "marca": "BS",
   "stare": "disponibil",
   "detaliu": "1.100 m², intravilan, toate utilitățile",
+  "pretMp": 74,
   "lng": 26.088603,
   "lat": 44.614422
  },
@@ -86,6 +95,7 @@
   "marca": "BD",
   "stare": "oferta",
   "detaliu": "5.600 m², deschidere 48 m la DN1",
+  "pretMp": 46,
   "lng": 26.084754,
   "lat": 44.60892
  },
@@ -95,6 +105,7 @@
   "marca": "PC",
   "stare": "disponibil",
   "detaliu": "700 m², intravilan, gaz în stradă",
+  "pretMp": 61,
   "lng": 26.070318,
   "lat": 44.602557
  },
@@ -104,6 +115,7 @@
   "marca": "T30",
   "stare": "in_curand",
   "detaliu": "4 ha, dezmembrare în lucru",
+  "pretMp": 16,
   "lng": 26.074714,
   "lat": 44.639109
  },
@@ -113,6 +125,7 @@
   "marca": "BN",
   "stare": "disponibil",
   "detaliu": "5 loturi, 500-750 m²",
+  "pretMp": 57,
   "lng": 26.082655,
   "lat": 44.636387
  },
@@ -122,6 +135,7 @@
   "marca": "PL",
   "stare": "vandut",
   "detaliu": "1,1 ha, vândut în martie 2026",
+  "pretMp": 31,
   "lng": 26.078828,
   "lat": 44.60004
  },
@@ -131,6 +145,7 @@
   "marca": "PV",
   "stare": "disponibil",
   "detaliu": "1,3 ha, front 48 m",
+  "pretMp": 27,
   "lng": 26.061594,
   "lat": 44.598191
  },
@@ -140,6 +155,7 @@
   "marca": "OR",
   "stare": "disponibil",
   "detaliu": "2,6 ha arabil, front 110 m",
+  "pretMp": 12,
   "lng": 26.037176,
   "lat": 44.614317
  },
@@ -149,6 +165,7 @@
   "marca": "OS",
   "stare": "vandut",
   "detaliu": "6 loturi, vândute în 2025",
+  "pretMp": 49,
   "lng": 26.036518,
   "lat": 44.620573
  },
@@ -158,6 +175,7 @@
   "marca": "DP",
   "stare": "disponibil",
   "detaliu": "1,8 ha arabil, cu scoatere din circuit începută",
+  "pretMp": 15,
   "lng": 26.038479,
   "lat": 44.626688
  },
@@ -167,6 +185,7 @@
   "marca": "T48",
   "stare": "in_curand",
   "detaliu": "2,4 ha, drum de acces în execuție",
+  "pretMp": 18,
   "lng": 26.042885,
   "lat": 44.632121
  },
@@ -176,6 +195,7 @@
   "marca": "CS",
   "stare": "oferta",
   "detaliu": "1.500 m², la 900 m de sat",
+  "pretMp": 24,
   "lng": 26.066,
   "lat": 44.644361
  }

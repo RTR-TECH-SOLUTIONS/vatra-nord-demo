@@ -83,25 +83,36 @@ const testimoniale = testimonialeJson as unknown as Testimonial[];
 >
   <AplicaPublicat />
   <article>
-    <!-- Hero: vedere aeriană reală a amplasamentului -->
-    <header class="hero">
-      <img
-        src={cale(`/imagini/${proiect.slug}.jpg`)}
-        alt={`Vedere aeriană a terenului parcelării ${proiect.nume}, ${proiect.localitate}`}
-        width="1600"
-        height="900"
-        loading="eager"
-        fetchpriority="high"
-      />
-      <div class="hero__text">
-        <p class="hero__loc">{proiect.localitate}, județul {proiect.judet}</p>
+    <!--
+      Pagina se deschide cu pozele de pe teren, nu cu o vedere din satelit.
+      Trei locuri: unul mare cât jumătate din suprafață și două de câte un
+      sfert. Cât timp clientul nu a încărcat nimic din panou, locurile rămân
+      goale, cu o notă în ele: un chenar gol care spune ce urmează arată mai
+      onest decât o poză de stoc pusă ca să nu fie alb.
+    -->
+    <header class="cap-parcelare">
+      <div class="galerie" data-galerie={proiect.slug} data-baza={cale('/')}>
+        {
+          [0, 1, 2].map((i) => (
+            <figure class={i === 0 ? 'galerie__loc galerie__loc--mare' : 'galerie__loc'} data-slot={i}>
+              <span class="galerie__gol">
+                {i === 0 ? 'Poză din parcelare' : 'Poză'}
+                <em>se adaugă din panou</em>
+              </span>
+            </figure>
+          ))
+        }
+      </div>
+
+      <div class="cap-parcelare__text">
+        <p class="cap__loc">{proiect.localitate}, județul {proiect.judet}</p>
         <h1>{proiect.nume}</h1>
-        <p class="hero__pret cifre">
+        <p class="cap__pret cifre">
           {s.disponibile} loturi disponibile, de la {euro(s.pret_total_min ?? 0)} + TVA
         </p>
-        <div class="hero__actiuni">
+        <div class="cap__actiuni">
           <a class="buton buton-primar" href={cale(`/?parcelare=${proiect.slug}`)}>Vezi loturile pe hartă</a>
-          <a class="buton buton-secundar buton--pe-imagine" href={FIRMA.telefonLink}>{FIRMA.telefon}</a>
+          <a class="buton buton-secundar" href={FIRMA.telefonLink}>{FIRMA.telefon}</a>
         </div>
       </div>
     </header>
@@ -339,75 +350,131 @@ const testimoniale = testimonialeJson as unknown as Testimonial[];
   if (buton) buton.dataset.textInitial = buton.textContent ?? '';
 </script>
 
+<script>
+  /**
+   * Umple galeria de sus cu pozele publicate din panou. Fără ele, locurile
+   * rămân goale, cu nota lor: nu punem poze de stoc doar ca să nu fie alb.
+   */
+  import { citeste } from '../../lib/depozit';
+
+  const galerie = document.querySelector<HTMLElement>('[data-galerie]');
+  if (galerie) {
+    const slug = galerie.dataset.galerie!;
+    const baza = galerie.dataset.baza || '/';
+    const poze = citeste().pozeParcelare[slug] ?? [];
+    for (const loc of galerie.querySelectorAll<HTMLElement>('[data-slot]')) {
+      const sursa = poze[Number(loc.dataset.slot)];
+      if (!sursa) continue;
+      const img = document.createElement('img');
+      img.src = sursa.startsWith('data:') ? sursa : `${baza}/${sursa}`.replace(/([^:])\/{2,}/g, '$1/');
+      img.alt = '';
+      img.loading = 'lazy';
+      loc.prepend(img);
+      loc.dataset.plin = 'da';
+    }
+  }
+</script>
+
 <style>
-  .hero {
+  /* ------------------------------------------------------- galeria de sus */
+  /* Un loc mare cât jumătate din suprafață și două de câte un sfert: mare la
+     stânga pe toată înălțimea, două suprapuse la dreapta. */
+  .galerie {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr 1fr;
+    gap: 4px;
+    height: clamp(17rem, 46vh, 28rem);
+    background: var(--color-hairline);
+  }
+
+  .galerie__loc {
     position: relative;
-    isolation: isolate;
+    margin: 0;
+    overflow: hidden;
+    background: var(--color-paper-2);
+    display: grid;
+    place-content: center;
   }
 
-  .hero img {
-    width: 100%;
-    height: clamp(20rem, 52vh, 34rem);
-    object-fit: cover;
-    display: block;
+  .galerie__loc--mare {
+    grid-row: 1 / 3;
   }
 
-  .hero::after {
-    content: '';
+  .galerie__loc img {
     position: absolute;
     inset: 0;
-    background: linear-gradient(to top, rgb(0 0 0 / 0.72) 0%, rgb(0 0 0 / 0.28) 42%, transparent 72%);
-    z-index: 1;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
   }
 
-  .hero__text {
-    position: absolute;
-    inset: auto 0 0 0;
-    z-index: 2;
-    padding: 2rem 1.25rem 2.25rem;
+  .galerie__gol {
+    display: grid;
+    gap: 0.2rem;
+    justify-items: center;
+    text-align: center;
+    padding: 0.75rem;
+    font-size: 0.8125rem;
+    color: var(--color-ink-3);
+  }
+
+  .galerie__gol em {
+    font-style: normal;
+    font-size: 0.6875rem;
+    opacity: 0.75;
+  }
+
+  .galerie__loc[data-plin] .galerie__gol {
+    display: none;
+  }
+
+  @media (max-width: 47.99rem) {
+    .galerie {
+      grid-template-columns: 1fr 1fr;
+      grid-template-rows: 12rem 7rem;
+      height: auto;
+    }
+    .galerie__loc--mare {
+      grid-column: 1 / 3;
+      grid-row: 1;
+    }
+  }
+
+  .cap-parcelare__text {
     max-width: 68rem;
     margin-inline: auto;
-    color: #fff;
+    padding: 2rem 1.25rem 0;
   }
 
   @media (min-width: 48rem) {
-    .hero__text {
+    .cap-parcelare__text {
       padding-inline: 2rem;
     }
   }
 
-  .hero__loc {
-    font-family: var(--font-mono);
-    font-size: 0.75rem;
-    opacity: 0.86;
-  }
-
-  .hero h1 {
-    font-size: clamp(2rem, 5vw, 3.25rem);
-    margin-top: 0.35rem;
-  }
-
-  .hero__pret {
-    margin-top: 0.5rem;
-    font-size: 1.0625rem;
-    opacity: 0.94;
-  }
-
-  .hero__actiuni {
-    margin-top: 1.25rem;
+  .cap__actiuni {
+    margin-top: 1.5rem;
     display: flex;
     flex-wrap: wrap;
     gap: 0.625rem;
   }
 
-  .buton--pe-imagine {
-    color: #fff;
-    border-color: rgb(255 255 255 / 0.5);
+  .cap__loc {
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    color: var(--color-ink-2);
   }
 
-  .buton--pe-imagine:hover {
-    background: rgb(255 255 255 / 0.14);
-    border-color: #fff;
+  .cap-parcelare__text h1 {
+    font-size: clamp(2rem, 5vw, 3.25rem);
+    margin-top: 0.35rem;
+  }
+
+  .cap__pret {
+    margin-top: 0.5rem;
+    font-size: 1.0625rem;
+    color: var(--color-ink-2);
   }
 
   .continut {

@@ -1,4 +1,4 @@
-# Vatra Nord — demo de prezentare pentru vânzare de loturi
+# Terenuri Boerescu — demo de prezentare pentru vânzare de loturi
 
 Demo pentru un dezvoltator care vinde loturi de casă în Ilfov nord. Harta e
 pagina principală, nu o secțiune: intri pe site și vezi direct ce e de vânzare
