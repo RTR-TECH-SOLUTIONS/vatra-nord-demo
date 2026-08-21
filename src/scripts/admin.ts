@@ -17,7 +17,7 @@ import {
 import { STATUSURI, ORDINE_STATUS, euro, mp, ml } from '../lib/loturi';
 import type { Proiect, ProprietatiLot, StatusLot } from '../lib/loturi';
 import { citeste, scrie, goleste, numaraModificari, type Depozit, type Modificare } from '../lib/depozit';
-import { styleBasemap, type ModBasemap } from '../lib/basemap';
+import { styleBasemap, FONT_HARTA, type ModBasemap } from '../lib/basemap';
 import { elementPin, marcaDinNume, ORDINE_STARI, STARI_PIN, type Pin, type StarePin } from '../lib/pin';
 import type { Testimonial } from '../lib/testimoniale';
 
@@ -35,6 +35,9 @@ const proiecte = citesteJSON<Proiect[]>('date-proiecte');
 const proiectDupaSlug = new Map(proiecte.map((p) => [p.slug, p]));
 
 type Inel = [number, number][];
+
+/** Valoarea din selector care înseamnă „fă o parcelare nouă”. */
+const NOU = '__nou__';
 
 interface LotAdmin {
   id: string;
@@ -62,6 +65,8 @@ let modBasemap: ModBasemap = 'harta';
 
 let baza: LotAdmin[] = [];
 let loturi: LotAdmin[] = [];
+/** Parcelările create din panou, peste cele generate la build. */
+let proiecteNoi: Proiect[] = [];
 let selectie: string[] = [];
 let unealta: Unealta = 'navigare';
 let idDesenTeren: string | number | null = null;
@@ -188,6 +193,17 @@ async function incarca() {
   baza = colectie.features.map((f) => laLot(f));
 
   const d = citeste();
+
+  // Parcelările create într-o sesiune anterioară intră înapoi în listă înainte
+  // de loturi, ca loturile lor să aibă unde să se lipească.
+  proiecteNoi = d.proiecteNoi.map((p) => ({ ...p }));
+  for (const p of proiecteNoi) {
+    if (proiectDupaSlug.has(p.slug)) continue;
+    proiecte.push(p);
+    proiectDupaSlug.set(p.slug, p);
+  }
+  umpleSelectoare();
+
   const sterse = new Set(d.sterse);
   loturi = baza
     .filter((l) => !sterse.has(l.id))
@@ -233,6 +249,9 @@ function calculeazaDepozit(): Omit<Depozit, 'versiune' | 'actualizat'> {
   }
 
   const adaugate = loturi.filter((l) => l.nou).map(caFeature);
+  // Parcelările noi se publică doar dacă au rămas cu loturi: una golită între
+  // timp nu are ce căuta în portofoliu.
+  const proiecteDePublicat = proiecteNoi.filter((p) => loturi.some((l) => l.proiect === p.slug));
   // Dacă lista de pinuri e neatinsă, nu o mai scriem: harta publică folosește
   // atunci direct build-ul, iar depozitul nu poartă o copie inutilă.
   const pinuriDePublicat =
@@ -245,6 +264,7 @@ function calculeazaDepozit(): Omit<Depozit, 'versiune' | 'actualizat'> {
     sterse,
     pinuri: pinuriDePublicat,
     testimoniale: testimonialeDePublicat,
+    proiecteNoi: proiecteDePublicat,
   };
 }
 
@@ -270,12 +290,17 @@ function renunta() {
 const container = el<HTMLDivElement>('harta-admin');
 if (!container) throw new Error('Lipsește containerul hărții');
 
-const primul = proiecte[0];
+// Parcelarea cu cele mai multe loturi libere: acolo e treabă de făcut.
+const primul = proiecte.reduce((a, b) =>
+  b.statistici.disponibile > a.statistici.disponibile ? b : a,
+);
 harta = new MapLibre({
   container,
   style: await styleBasemap(modBasemap),
   center: primul.camera.center,
-  zoom: 15.6,
+  // Fâșiile au sub o sută cincizeci de metri; la 15,6 rămâneau o dungă în
+  // mijlocul ecranului și nu se putea da click pe un lot.
+  zoom: 17.6,
   bearing: primul.camera.bearing,
   pitch: 0,
   attributionControl: { compact: true },
@@ -359,10 +384,10 @@ harta.on('load', () => {
     id: 'lot-cod',
     type: 'symbol',
     source: 'loturi',
-    minzoom: 16.4,
+    minzoom: 15.6,
     layout: {
       'text-field': ['get', 'cod'],
-      'text-font': ['Noto Sans Bold'],
+      'text-font': FONT_HARTA,
       'text-size': 11,
     },
     paint: { 'text-color': '#ffffff', 'text-halo-color': 'rgba(0,0,0,0.7)', 'text-halo-width': 1.2 },
@@ -805,18 +830,83 @@ function idNou() {
   return `manual-${Date.now().toString(36)}-${contorNou}`;
 }
 
+/**
+ * Codul următor din parcelare. Loturile generate au numere simple (1, 2, 3),
+ * deci un lot desenat de mână trebuie să continue șirul, nu să apară ca „M3”
+ * lângă ele. Dacă parcelarea folosește coduri cu literă, se păstrează litera.
+ */
+function codUrmator(slug: string): string {
+  const ale = loturi.filter((l) => l.proiect === slug);
+  const prefix = ale.map((l) => l.cod.match(/^([A-Za-zĂÂÎȘȚ]*)/)?.[1] ?? '').find(Boolean) ?? '';
+  const maxim = ale.reduce((m, l) => {
+    const n = Number(l.cod.replace(/^[^0-9]*/, '').match(/^\d+/)?.[0] ?? 0);
+    return n > m ? n : m;
+  }, 0);
+  return `${prefix}${maxim + 1}`;
+}
+
+/** Prețul mediu pe metru pătrat din parcelare, ca punct de pornire. */
+function pretMediu(slug: string): number | null {
+  const ale = loturi.filter((l) => l.proiect === slug);
+  if (!ale.length) return null;
+  return Math.round(ale.reduce((s, l) => s + l.pret_mp, 0) / ale.length);
+}
+
+/** Punct în poligon, cu regula par-impar. Ne trebuie doar aici. */
+function inInel(inel: Inel, [x, y]: [number, number]): boolean {
+  let inauntru = false;
+  for (let i = 0, j = inel.length - 1; i < inel.length; j = i++) {
+    const [xi, yi] = inel[i];
+    const [xj, yj] = inel[j];
+    if (yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) inauntru = !inauntru;
+  }
+  return inauntru;
+}
+
+/**
+ * Parcelarea în care cade lotul desenat.
+ *
+ * Se caută după geometrie, nu după ce scrie în selectorul de generare: dacă
+ * desenezi un lot lângă Săftica, el ține de Săftica, oricare ar fi parcelarea
+ * aleasă în panoul de generare automată. Înainte lotul ajungea mereu la prima
+ * parcelare din listă, cu codul și prețul ei, la doi kilometri de unde fusese
+ * desenat.
+ */
+function parcelareaDupaLoc(inel: Inel): string | null {
+  const c: [number, number] = [
+    inel.reduce((a, p) => a + p[0], 0) / inel.length,
+    inel.reduce((a, p) => a + p[1], 0) / inel.length,
+  ];
+  const acasa = proiecte.find((p) => inInel(p.hotar as Inel, c));
+  if (acasa) return acasa.slug;
+
+  // Nu cade în niciun hotar: îl dăm celei mai apropiate, dacă e la îndemână.
+  let cea: { slug: string; d: number } | null = null;
+  for (const p of proiecte) {
+    const cx = (p.bbox[0] + p.bbox[2]) / 2;
+    const cy = (p.bbox[1] + p.bbox[3]) / 2;
+    const d = Math.hypot((cx - c[0]) * Math.cos((c[1] * Math.PI) / 180), cy - c[1]);
+    if (!cea || d < cea.d) cea = { slug: p.slug, d };
+  }
+  // ~0,009 grade înseamnă vreo 900 m: dincolo de atât nu mai e „lângă”.
+  return cea && cea.d < 0.009 ? cea.slug : null;
+}
+
 function adaugaLot(inel: Inel, sursa?: LotAdmin) {
   memoreaza();
-  const proiect = sursa?.proiect ?? (el<HTMLSelectElement>('camp-proiect')?.value || proiecte[0].slug);
+  const proiect =
+    sursa?.proiect ??
+    parcelareaDupaLoc(inel) ??
+    (el<HTMLSelectElement>('camp-proiect')?.value || proiecte[0].slug);
   const lot: LotAdmin = {
     id: idNou(),
-    cod: sursa ? `${sursa.cod}-${contorNou}` : `M${contorNou}`,
+    cod: sursa ? `${sursa.cod}-${contorNou}` : codUrmator(proiect),
     proiect,
     status: 'disponibil',
     suprafata: suprafataInel(inel),
     front: deschidereInel(inel),
     laturi: inel.length - 1,
-    pret_mp: sursa?.pret_mp ?? numar('camp-pret', 60),
+    pret_mp: sursa?.pret_mp ?? pretMediu(proiect) ?? numar('camp-pret', 60),
     observatii: sursa ? 'lot rezultat din împărțire' : 'lot delimitat manual',
     sir: sursa?.sir ?? 0,
     actualizat: new Date().toISOString().slice(0, 10),
@@ -825,7 +915,10 @@ function adaugaLot(inel: Inel, sursa?: LotAdmin) {
   };
   loturi.push(lot);
   selectie = [lot.id];
-  anunta(`Lot adăugat: ${mp(lot.suprafata)}, deschidere ${ml(lot.front)}.`);
+  anunta(
+    `Lot adăugat la ${proiectDupaSlug.get(proiect)?.nume ?? proiect}: ` +
+      `${mp(lot.suprafata)}, deschidere ${ml(lot.front)}, codul ${lot.cod}.`,
+  );
   randeaza();
   return lot;
 }
@@ -986,6 +1079,112 @@ function azimutLaturaLunga(inel: Inel) {
   return Math.round(best.az);
 }
 
+function slugRo(nume: string): string {
+  const harta: Record<string, string> = {
+    ă: 'a', â: 'a', î: 'i', ș: 's', ş: 's', ț: 't', ţ: 't',
+  };
+  const baza = nume
+    .toLowerCase()
+    .replace(/[ăâîșşțţ]/g, (c) => harta[c] ?? c)
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  let slug = baza || 'parcelare';
+  let n = 2;
+  while (proiectDupaSlug.has(slug)) slug = `${baza}-${n++}`;
+  return slug;
+}
+
+/**
+ * Parcelarea nouă, construită din terenul desenat.
+ *
+ * Regimul de construire, utilitățile și condițiile de plată se copiază de la o
+ * parcelare existentă: sunt zeci de câmpuri pe care nimeni nu le completează de
+ * la zero într-un panou, și în realitate un dezvoltator lucrează oricum cu
+ * aceleași condiții pe toată zona. Ce se scrie de mână e doar ce chiar diferă:
+ * numele, localitatea și prețul.
+ */
+function creeazaParcelare(rezultat: ReturnType<typeof genereazaParcelare>, azimut: number): string | null {
+  const nume = (el<HTMLInputElement>('np-nume')?.value ?? '').trim();
+  if (!nume) {
+    anunta('Scrie numele parcelării noi înainte să generezi.', 'eroare');
+    return null;
+  }
+  const model = proiectDupaSlug.get(el<HTMLSelectElement>('np-model')?.value ?? '') ?? proiecte[0];
+  const localitate = (el<HTMLInputElement>('np-localitate')?.value ?? '').trim() || model.localitate;
+
+  const inel = (teren ?? []) as Inel;
+  const bbox = inel.reduce(
+    (b, [x, y]) => [Math.min(b[0], x), Math.min(b[1], y), Math.max(b[2], x), Math.max(b[3], y)],
+    [180, 90, -180, -90],
+  ) as [number, number, number, number];
+
+  // Motorul citește `v` ca (-uy, ux) și pune fața lotului la `v` mare, deci
+  // strada e acolo; direcția dinspre stradă spre lot e exact opusul.
+  const th = (azimut * Math.PI) / 180;
+  const azimutNormala =
+    ((Math.atan2(Math.cos(th), -Math.sin(th)) * 180) / Math.PI + 360) % 360;
+
+  const azi = new Date().toISOString().slice(0, 10);
+  const front = numar('camp-front', 20);
+  const adancime = numar('camp-adancime', 38);
+  const pret = numar('camp-pret', 60);
+  const supr = rezultat.loturi.map((l) => l.suprafata);
+
+  const p: Proiect = {
+    slug: slugRo(nume),
+    nume,
+    localitate,
+    judet: model.judet,
+    azimut: +azimut.toFixed(1),
+    azimutNormala: +azimutNormala.toFixed(1),
+    lotTipic: { front, adancime, drumInterior: numar('camp-drum', 0) },
+    pretMp: [pret, pret],
+    camera: {
+      center: [+((bbox[0] + bbox[2]) / 2).toFixed(6), +((bbox[1] + bbox[3]) / 2).toFixed(6)],
+      zoom: 17.4,
+      bearing: +(((azimutNormala + 540) % 360) - 180).toFixed(1),
+      pitch: 46,
+    },
+    bbox: bbox.map((n) => +n.toFixed(5)) as [number, number, number, number],
+    hotar: inel.map(([x, y]) => [+x.toFixed(6), +y.toFixed(6)]),
+    tarlaHa: +(rezultat.statistici.teren_ha ?? 0).toFixed(2),
+    distante: model.distante,
+    finantare: model.finantare,
+    urbanism: model.urbanism,
+    utilitati: model.utilitati,
+    descriere: [
+      `${nume} e o fâșie de ${rezultat.loturi.length} loturi la ${localitate}, ` +
+        `cu suprafețe între ${Math.min(...supr)} și ${Math.max(...supr)} de metri pătrați. ` +
+        'Textul ăsta se scrie înainte de publicare.',
+    ],
+    actualizat: azi,
+    statistici: {
+      total: rezultat.loturi.length,
+      disponibile: rezultat.loturi.length,
+      rezervate: 0,
+      vandute: 0,
+      in_pregatire: 0,
+      benzi: rezultat.statistici.benzi,
+      suprafata_min: Math.min(...supr),
+      suprafata_max: Math.max(...supr),
+      suprafata_totala_ha: +(supr.reduce((a, b) => a + b, 0) / 1e4).toFixed(1),
+      front_min: Math.min(...rezultat.loturi.map((l) => l.front)),
+      pret_mp_min: pret,
+      pret_mp_max: pret,
+      pret_total_min: Math.round(Math.min(...supr) * pret),
+    },
+  };
+
+  proiecte.push(p);
+  proiectDupaSlug.set(p.slug, p);
+  proiecteNoi.push(p);
+  umpleSelectoare();
+  const sel = el<HTMLSelectElement>('camp-proiect');
+  if (sel) sel.value = p.slug;
+  comutaParcelareNoua();
+  return p.slug;
+}
+
 function genereaza() {
   if (!teren) return anunta('Desenează întâi conturul terenului.', 'eroare');
   anunta('Se împarte terenul…', 'lucru');
@@ -998,17 +1197,20 @@ function genereaza() {
       azimut: numar('camp-azimut', 90),
       front,
       adancime,
-      drumInterior: numar('camp-drum', 8),
-      drumTransversal: numar('camp-transversal', 8),
-      pasTransversal: numar('camp-pas', 130),
-      retragere: numar('camp-retragere', 5),
+      drumInterior: numar('camp-drum', 0),
+      drumTransversal: numar('camp-transversal', 0),
+      pasTransversal: numar('camp-pas', 0),
+      maxBenzi: Math.max(1, Math.round(numar('camp-benzi', 1))),
+      retragere: numar('camp-retragere', 2),
       minSuprafata: Math.round(front * adancime * 0.62),
       marjaObstacol: numar('camp-marja', 3),
     });
 
     memoreaza();
-    const prefix = (el<HTMLInputElement>('camp-prefix')?.value || 'M').toUpperCase();
-    const proiect = el<HTMLSelectElement>('camp-proiect')?.value || proiecte[0].slug;
+    const prefix = (el<HTMLInputElement>('camp-prefix')?.value || '').toUpperCase();
+    const ales = el<HTMLSelectElement>('camp-proiect')?.value || proiecte[0].slug;
+    const proiect = ales === NOU ? creeazaParcelare(rezultat, numar('camp-azimut', 90)) : ales;
+    if (!proiect) return;
     const pret = numar('camp-pret', 60);
     for (const [i, l] of rezultat.loturi.entries()) {
       contorNou += 1;
@@ -1238,7 +1440,7 @@ el<HTMLButtonElement>('descarca')?.addEventListener('click', () => {
 el<HTMLSelectElement>('sari-la')?.addEventListener('change', (e) => {
   const p = proiectDupaSlug.get((e.target as HTMLSelectElement).value);
   if (!p) return;
-  harta.flyTo({ center: p.camera.center, zoom: 15.6, bearing: p.camera.bearing, pitch: 0, duration: 900 });
+  harta.flyTo({ center: p.camera.center, zoom: 17.6, bearing: p.camera.bearing, pitch: 0, duration: 900 });
 });
 
 for (const b of document.querySelectorAll<HTMLButtonElement>('[data-basemap]')) {
@@ -1280,12 +1482,43 @@ if (selectStatus) {
     (s) => `<option value="${s}">${STATUSURI[s].eticheta}</option>`,
   ).join('');
 }
-const optiuniProiect = proiecte
-  .map((p) => `<option value="${p.slug}">${p.nume}, ${p.localitate}</option>`)
-  .join('');
-const selectProiect = el<HTMLSelectElement>('camp-proiect');
-if (selectProiect) selectProiect.innerHTML = optiuniProiect;
-const selectSariLa = el<HTMLSelectElement>('sari-la');
-if (selectSariLa) selectSariLa.innerHTML = `<option value="">Sari la parcelare…</option>${optiuniProiect}`;
+/**
+ * Toate selectoarele de parcelare, umplute dintr-o singură sursă. Se apelează
+ * din nou după ce panoul creează o parcelare, ca ea să apară imediat peste tot.
+ */
+function umpleSelectoare() {
+  const optiuni = proiecte
+    .map((p) => `<option value="${p.slug}">${p.nume}, ${p.localitate}</option>`)
+    .join('');
+
+  const pastreaza = (nod: HTMLSelectElement | null, html: string) => {
+    if (!nod) return;
+    const inainte = nod.value;
+    nod.innerHTML = html;
+    if ([...nod.options].some((o) => o.value === inainte)) nod.value = inainte;
+  };
+
+  pastreaza(
+    el<HTMLSelectElement>('camp-proiect'),
+    `${optiuni}<option value="${NOU}">＋ Parcelare nouă…</option>`,
+  );
+  pastreaza(el<HTMLSelectElement>('np-model'), optiuni);
+  pastreaza(el<HTMLSelectElement>('sari-la'), `<option value="">Sari la parcelare…</option>${optiuni}`);
+  pastreaza(
+    el<HTMLSelectElement>('tst-proiect'),
+    `<option value="">Fără parcelare</option>${optiuni}`,
+  );
+}
+
+/** Câmpurile parcelării noi apar doar când e aleasă în selector. */
+function comutaParcelareNoua() {
+  const grup = el('grup-parcelare-noua');
+  const sel = el<HTMLSelectElement>('camp-proiect');
+  if (grup) grup.hidden = sel?.value !== NOU;
+}
+
+umpleSelectoare();
+el<HTMLSelectElement>('camp-proiect')?.addEventListener('change', comutaParcelareNoua);
+comutaParcelareNoua();
 
 actualizeazaAzimut();

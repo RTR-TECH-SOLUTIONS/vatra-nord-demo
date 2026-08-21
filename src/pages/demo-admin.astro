@@ -155,37 +155,47 @@ const proiecte = proiecteJson as unknown as Proiect[];
           <div class="pereche">
             <div class="camp-admin">
               <label for="camp-front">Deschidere (m)</label>
-              <input type="number" id="camp-front" value="18" min="8" max="60" step="0.5" />
+              <input type="number" id="camp-front" value="20" min="8" max="60" step="0.5" />
             </div>
             <div class="camp-admin">
               <label for="camp-adancime">Adâncime (m)</label>
-              <input type="number" id="camp-adancime" value="33" min="15" max="120" step="1" />
+              <input type="number" id="camp-adancime" value="38" min="15" max="120" step="1" />
             </div>
           </div>
           <div class="pereche">
             <div class="camp-admin">
               <label for="camp-drum">Drum între rânduri (m)</label>
-              <input type="number" id="camp-drum" value="8" min="0" max="30" step="0.5" />
+              <input type="number" id="camp-drum" value="0" min="0" max="30" step="0.5" />
             </div>
             <div class="camp-admin">
               <label for="camp-retragere">Retragere hotar (m)</label>
-              <input type="number" id="camp-retragere" value="5" min="0" max="40" step="0.5" />
+              <input type="number" id="camp-retragere" value="2" min="0" max="40" step="0.5" />
             </div>
           </div>
           <div class="pereche">
             <div class="camp-admin">
               <label for="camp-transversal">Stradă transversală (m)</label>
-              <input type="number" id="camp-transversal" value="8" min="0" max="30" step="0.5" />
+              <input type="number" id="camp-transversal" value="0" min="0" max="30" step="0.5" />
             </div>
             <div class="camp-admin">
               <label for="camp-pas">La fiecare (m)</label>
-              <input type="number" id="camp-pas" value="130" min="0" max="600" step="10" />
+              <input type="number" id="camp-pas" value="0" min="0" max="600" step="10" />
             </div>
           </div>
-          <div class="camp-admin">
-            <label for="camp-marja">Distanță de gardă față de obstacole (m)</label>
-            <input type="number" id="camp-marja" value="3" min="0" max="30" step="0.5" />
+          <div class="pereche">
+            <div class="camp-admin">
+              <label for="camp-marja">Gardă față de obstacole (m)</label>
+              <input type="number" id="camp-marja" value="3" min="0" max="30" step="0.5" />
+            </div>
+            <div class="camp-admin">
+              <label for="camp-benzi">Rânduri de loturi</label>
+              <input type="number" id="camp-benzi" value="1" min="1" max="12" step="1" />
+            </div>
           </div>
+          <p class="ajutor">
+            Un rând înseamnă loturi cu fața la drumul existent, fără stradă interioară. Așa arată
+            fâșiile din portofoliu.
+          </p>
 
           <div class="camp-admin">
             <div class="camp-admin__cap">
@@ -200,8 +210,8 @@ const proiecte = proiecteJson as unknown as Proiect[];
 
           <div class="pereche">
             <div class="camp-admin">
-              <label for="camp-prefix">Prefix cod</label>
-              <input type="text" id="camp-prefix" value="M" maxlength="3" />
+              <label for="camp-prefix">Prefix cod (opțional)</label>
+              <input type="text" id="camp-prefix" value="" maxlength="3" placeholder="fără" />
             </div>
             <div class="camp-admin">
               <label for="camp-pret">Preț pornire (€/m²)</label>
@@ -211,6 +221,29 @@ const proiecte = proiecteJson as unknown as Proiect[];
           <div class="camp-admin">
             <label for="camp-proiect">Se adaugă la parcelarea</label>
             <select id="camp-proiect"></select>
+          </div>
+
+          <!-- Parcelare nouă: apare doar când e aleasă în selectorul de mai sus. -->
+          <div id="grup-parcelare-noua" hidden>
+            <div class="pereche">
+              <div class="camp-admin">
+                <label for="np-nume">Numele parcelării</label>
+                <input type="text" id="np-nume" autocomplete="off" placeholder="Petrești Vest" />
+              </div>
+              <div class="camp-admin">
+                <label for="np-localitate">Localitatea</label>
+                <input type="text" id="np-localitate" autocomplete="off" placeholder="Balotești" />
+              </div>
+            </div>
+            <div class="camp-admin">
+              <label for="np-model">Copiază urbanismul și utilitățile de la</label>
+              <select id="np-model"></select>
+            </div>
+            <p class="ajutor">
+              Regimul de construire, utilitățile și condițiile de plată se preiau de la parcelarea
+              aleasă și se pot schimba după aceea. Parcelarea nouă apare pe hartă și în portofoliu,
+              dar nu are încă pagină proprie: aia se face la publicarea site-ului.
+            </p>
           </div>
 
           <button type="button" id="genereaza" class="buton buton-primar w-full" disabled>

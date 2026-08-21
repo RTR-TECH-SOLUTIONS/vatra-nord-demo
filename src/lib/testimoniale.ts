@@ -21,6 +21,12 @@ export interface Testimonial {
   proiect: string | null;
   /** Codul lotului cumpărat, dacă vrea să apară. */
   lot: string | null;
+  /**
+   * Id-ul lotului din inventar. Din el iese butonul care duce pe hartă exact
+   * pe parcela cumpărată: o recomandare care se poate verifica pe teren
+   * cântărește altfel decât una semnată „client din Ilfov”.
+   */
+  lotId?: string | null;
   suprafata: number | null;
   /** Luna cumpărării, „2025-05”. Anul singur e prea vag ca să conteze. */
   data: string | null;

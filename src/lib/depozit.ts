@@ -8,7 +8,7 @@
  * singurul lucru care se schimbă e implementarea funcțiilor `citeste` și
  * `scrie`: în loc de localStorage, un API.
  */
-import type { ProprietatiLot, StatusLot } from './loturi';
+import type { Proiect, ProprietatiLot, StatusLot } from './loturi';
 import type { Pin } from './pin';
 import type { Testimonial } from './testimoniale';
 
@@ -38,9 +38,15 @@ export interface Depozit {
   pinuri: Pin[] | null;
   /** Aceeași regulă ca la pinuri: `null` înseamnă „neatinse din panou”. */
   testimoniale: Testimonial[] | null;
+  /**
+   * Parcelările create din panou, peste cele generate la build. Nu e lista
+   * completă, ca la pinuri, ci doar adăugirile: parcelările din build au
+   * pagini statice și fotografii, deci nu se rescriu din browser.
+   */
+  proiecteNoi: Proiect[];
 }
 
-const GOL: Depozit = { versiune: 1, actualizat: null, modificari: {}, adaugate: [], sterse: [], pinuri: null, testimoniale: null };
+const GOL: Depozit = { versiune: 1, actualizat: null, modificari: {}, adaugate: [], sterse: [], pinuri: null, testimoniale: null, proiecteNoi: [] };
 
 function areBrowser() {
   return typeof window !== 'undefined' && typeof window.localStorage !== 'undefined';
@@ -63,9 +69,10 @@ export function citeste(): Depozit {
       // trebuie să se citească în continuare, nu să fie aruncat.
       pinuri: d.pinuri ?? null,
       testimoniale: d.testimoniale ?? null,
+      proiecteNoi: d.proiecteNoi ?? [],
     };
   } catch {
-    return { ...GOL, pinuri: null, testimoniale: null };
+    return { ...GOL, pinuri: null, testimoniale: null, proiecteNoi: [] };
   }
 }
 
@@ -78,6 +85,7 @@ export function scrie(d: Omit<Depozit, 'versiune' | 'actualizat'>): Depozit {
     sterse: d.sterse,
     pinuri: d.pinuri,
     testimoniale: d.testimoniale,
+    proiecteNoi: d.proiecteNoi,
   };
   if (areBrowser()) window.localStorage.setItem(CHEIE, JSON.stringify(complet));
   return complet;
@@ -99,7 +107,8 @@ export function numaraModificari(d: Depozit) {
     d.adaugate.length +
     d.sterse.length +
     (d.pinuri ? 1 : 0) +
-    (d.testimoniale ? 1 : 0)
+    (d.testimoniale ? 1 : 0) +
+    d.proiecteNoi.length
   );
 }
 

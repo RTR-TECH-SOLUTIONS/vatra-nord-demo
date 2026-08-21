@@ -19,6 +19,7 @@ import { PARCELARI } from './situri.mjs';
 import { PROPRIETATI } from './proprietati.mjs';
 import { TESTIMONIALE } from './testimoniale.mjs';
 import { descarcaObstacole } from './obstacole.mjs';
+import { felieLaDrum } from './felie.mjs';
 
 const AICI = dirname(fileURLToPath(import.meta.url));
 const RADACINA = join(AICI, '..');
@@ -56,34 +57,6 @@ const POI = [
   { nume: 'Școala Gimnazială nr. 2 Balotești', categorie: 'școală', lon: 26.110972, lat: 44.623792 },
 ];
 
-/** Azimutul laturii de care se lipesc rândurile, în grade de la nord. */
-function azimutAncora(teren, ancora = 0) {
-  const pr = proiectieLocala(teren[0]);
-  const a = pr.laMetri(teren[ancora % teren.length]);
-  const b = pr.laMetri(teren[(ancora + 1) % teren.length]);
-  return ((Math.atan2(b[0] - a[0], b[1] - a[1]) * 180) / Math.PI + 360) % 180;
-}
-
-/** Direcția spre interiorul terenului, perpendiculară pe ancoră. */
-function azimutNormala(teren, ancora = 0) {
-  const pr = proiectieLocala(teren[0]);
-  const P = teren.map(pr.laMetri);
-  const a = P[ancora % P.length];
-  const b = P[(ancora + 1) % P.length];
-  const dx = b[0] - a[0];
-  const dy = b[1] - a[1];
-  const L = Math.hypot(dx, dy);
-  let nx = -dy / L;
-  let ny = dx / L;
-  const cx = P.reduce((s, p) => s + p[0], 0) / P.length;
-  const cy = P.reduce((s, p) => s + p[1], 0) / P.length;
-  if ((cx - a[0]) * nx + (cy - a[1]) * ny < 0) {
-    nx = -nx;
-    ny = -ny;
-  }
-  return ((Math.atan2(nx, ny) * 180) / Math.PI + 360) % 360;
-}
-
 function normalizeaza(valori) {
   const min = Math.min(...valori);
   const interval = Math.max(...valori) - min || 1;
@@ -92,23 +65,23 @@ function normalizeaza(valori) {
 
 async function proceseaza(cfg) {
   const obstacole = await descarcaObstacole(cfg.slug, cfg.teren);
-  const azimut = azimutAncora(cfg.teren, cfg.ancora);
+  const felie = felieLaDrum(cfg, obstacole.features);
 
   const rezultat = genereazaParcelare({
-    teren: cfg.teren,
+    teren: felie.inel,
     obstacole: obstacole.features,
-    azimut,
+    azimut: felie.azimut,
     front: cfg.front,
     adancime: cfg.adancime,
-    drumInterior: cfg.drumInterior,
-    // Blocuri de circa șapte loturi între străzile perpendiculare, ca într-o
-    // parcelare reală.
-    pasTransversal: cfg.pasTransversal ?? 130,
-    drumTransversal: cfg.drumTransversal ?? 8,
-    retragere: cfg.retragere ?? 5,
+    // Un singur șir de loturi, cu fața la drumul existent: la cinci-șapte
+    // loturi, un drum interior ar fi o alee care nu duce nicăieri.
+    maxBenzi: 1,
+    drumInterior: 0,
+    pasTransversal: 0,
+    drumTransversal: 0,
+    retragere: cfg.retragere ?? 2,
     // Sub 62% din lotul nominal, fâșia rămasă la hotar nu se vinde ca lot.
     minSuprafata: cfg.minSuprafata ?? Math.round(cfg.front * cfg.adancime * 0.62),
-    maxBenzi: cfg.benzi ?? Infinity,
     marjaObstacol: cfg.marjaObstacol ?? 3,
     rnd: mulberry32(cfg.seed),
   });
@@ -126,12 +99,16 @@ async function proceseaza(cfg) {
     if (!peSir.has(cheie)) peSir.set(cheie, []);
     peSir.get(cheie).push(l);
   }
+  // Numerotare ca la adrese reale. Cu două șiruri, impare pe o parte și pare pe
+  // cealaltă; cu un singur șir, consecutiv, pentru că „Lotul 3” se ține minte,
+  // iar „Lotul A5” dintr-o parcelare de șase loturi e birocrație inventată.
+  const dublu = loturi.some((l) => l.sir === 1);
   for (const [, lista] of peSir) {
     lista.sort((a, b) => a.u - b.u);
     lista.forEach((l, i) => {
       l.colt = i === 0 || i === lista.length - 1;
-      const numar = l.sir === 0 ? i * 2 + 1 : i * 2 + 2;
-      l.cod = `${LITERE[l.banda] ?? 'Z'}${numar}`;
+      const numar = dublu ? (l.sir === 0 ? i * 2 + 1 : i * 2 + 2) : i + 1;
+      l.cod = dublu || nrBenzi > 1 ? `${LITERE[l.banda] ?? 'Z'}${numar}` : String(numar);
     });
   }
 
@@ -165,9 +142,8 @@ async function proceseaza(cfg) {
     l.pretTotal = l.suprafata * l.pretMp;
 
     const note = [];
-    if (l.colt) note.push('lot de colț, deschidere pe două laturi');
+    if (l.colt) note.push('lot de capăt, deschidere pe două laturi');
     if (l.laturi > 4) note.push('formă neregulată, urmează hotarul terenului');
-    if (l.banda === nrBenzi - 1 && cfg.slug === 'lacul-vlasiei') note.push('ultima bandă, cu deschidere către lac');
     l.observatii = note.length ? note.join(', ') : null;
   });
 
@@ -228,8 +204,7 @@ async function proceseaza(cfg) {
     [180, 90, -180, -90],
   );
 
-  const azNormala = azimutNormala(cfg.teren, cfg.ancora);
-  const { seed, mix, teren, ancora, front, adancime, drumInterior, retragere,
+  const { seed, mix, teren, ancora, felie: _felie, front, adancime, drumInterior, retragere,
           minSuprafata, marjaObstacol, benzi, ...rest } = cfg;
 
   return {
@@ -241,16 +216,17 @@ async function proceseaza(cfg) {
     })),
     proiect: {
       ...rest,
-      lotTipic: { front, adancime, drumInterior },
-      azimut: +azimut.toFixed(1),
-      azimutNormala: +azNormala.toFixed(1),
-      hotar: teren.map(([x, y]) => [+x.toFixed(6), +y.toFixed(6)]),
+      lotTipic: { front, adancime, drumInterior: 0 },
+      azimut: +felie.azimut.toFixed(1),
+      azimutNormala: +felie.azimutNormala.toFixed(1),
+      hotar: felie.inel,
       tarlaHa: rezultat.statistici.teren_ha,
       camera: {
         center: [+((bbox[0] + bbox[2]) / 2).toFixed(6), +((bbox[1] + bbox[3]) / 2).toFixed(6)],
-        zoom: 15.6,
-        bearing: +(((azimut - 90 + 540) % 360) - 180).toFixed(1),
-        pitch: 60,
+        zoom: 17.4,
+        // Camera stă în spatele loturilor și privește peste ele spre drum.
+        bearing: +(((felie.azimutNormala + 180 + 540) % 360) - 180).toFixed(1),
+        pitch: 46,
       },
       bbox: bbox.map((n) => +n.toFixed(5)),
       statistici,
@@ -316,7 +292,7 @@ for (const r of rezultate) {
   console.log(
     `${r.proiect.slug.padEnd(15)} ${String(s.total).padStart(4)} loturi · ` +
       `${s.disponibile} disp / ${s.rezervate} rez / ${s.vandute} vând / ${s.in_pregatire} preg · ` +
-      `${s.benzi} benzi · ${s.suprafata_min}-${s.suprafata_max} mp · ` +
+      `${s.suprafata_min}-${s.suprafata_max} mp · ` +
       `randament ${s.randament}% · ${s.loturi_neregulate} loturi cu formă neregulată (max ${s.laturi_max} laturi)`,
   );
 }
