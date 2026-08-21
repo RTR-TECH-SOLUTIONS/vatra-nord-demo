@@ -1,0 +1,256 @@
+---
+/**
+ * Pagina unei recomandări.
+ *
+ * Se deschide cu trei locuri de poză, ca pagina parcelării: una mare cât
+ * jumătate din suprafață și două de câte un sfert. Pozele sunt cele primite de
+ * la cumpărător și se pun din panou; cât timp lipsesc, locurile rămân goale.
+ *
+ * Restul paginii e ce a spus omul, cu ce lot a cumpărat și cu două drumuri mai
+ * departe: parcelarea din care face parte și lotul lui pe hartă. Asta e ce nu
+ * are referința din piață: acolo recomandarea e text care nu duce nicăieri.
+ */
+import { cale } from '../../lib/cale';
+import Baza from '../../layouts/Baza.astro';
+import testimonialeJson from '../../data/testimoniale.json';
+import proiecteJson from '../../data/proiecte.json';
+import loturiJson from '../../data/loturi.json';
+import { lunaRo, type Testimonial } from '../../lib/testimoniale';
+import { STATUSURI, euro, mp, ml } from '../../lib/loturi';
+import type { Proiect, ProprietatiLot } from '../../lib/loturi';
+import { FIRMA } from '../../lib/firma';
+
+export function getStaticPaths() {
+  const testimoniale = testimonialeJson as unknown as Testimonial[];
+  const proiecte = proiecteJson as unknown as Proiect[];
+  const loturi = (loturiJson as unknown as { features: { properties: ProprietatiLot }[] }).features;
+  const dupaSlug = new Map(proiecte.map((p) => [p.slug, p]));
+
+  return testimoniale.map((t) => ({
+    params: { id: t.id },
+    props: {
+      t,
+      proiect: t.proiect ? (dupaSlug.get(t.proiect) ?? null) : null,
+      lot: t.lotId ? (loturi.find((f) => f.properties.id === t.lotId)?.properties ?? null) : null,
+    },
+  }));
+}
+
+interface Props {
+  t: Testimonial;
+  proiect: Proiect | null;
+  lot: ProprietatiLot | null;
+}
+
+const { t, proiect, lot } = Astro.props;
+const cand = lunaRo(t.data);
+
+const date: [string, string][] = [];
+if (t.lot) date.push(['Lotul cumpărat', proiect ? `Lotul ${t.lot}, ${proiect.nume}` : `Lotul ${t.lot}`]);
+if (t.suprafata) date.push(['Suprafață', mp(t.suprafata)]);
+if (lot) date.push(['Deschidere la stradă', ml(lot.front)]);
+if (cand) date.push(['Cumpărat în', cand]);
+if (t.localitate) date.push(['Cumpărătorul e din', t.localitate]);
+if (lot) date.push(['Stare azi', STATUSURI[lot.status].eticheta]);
+---
+
+<Baza
+  titlu={`${t.nume} · ${FIRMA.nume}`}
+  descriere={`${t.nume}${t.localitate ? `, ${t.localitate}` : ''} despre lotul cumpărat${proiect ? ` la ${proiect.nume}` : ''}.`}
+>
+  <article class="recomandare" data-recomandare={t.id} data-baza={cale('/')}>
+    <div class="galerie" data-galerie-recomandare>
+      {
+        [0, 1, 2].map((i) => (
+          <figure class={i === 0 ? 'galerie__loc galerie__loc--mare' : 'galerie__loc'} data-slot={i}>
+            {t.poze?.[i] && (
+              <img
+                src={t.poze[i]!.startsWith('data:') ? t.poze[i]! : cale(t.poze[i]!)}
+                alt={t.legendaPoza ?? ''}
+                loading={i === 0 ? 'eager' : 'lazy'}
+                width="1200"
+                height="800"
+              />
+            )}
+            <span class="galerie__gol">
+              {i === 0 ? 'Poză de la cumpărător' : 'Poză'}
+              <em>se adaugă din panou</em>
+            </span>
+          </figure>
+        ))
+      }
+    </div>
+
+    <div class="continut">
+      <nav class="firimituri" aria-label="Navigare secundară">
+        <a href={cale('/parcelari')}>Parcelări</a>
+        <span aria-hidden="true">·</span>
+        {proiect && <a href={cale(`/parcelari/${proiect.slug}`)}>{proiect.nume}</a>}
+        {proiect && <span aria-hidden="true">·</span>}
+        <span aria-current="page">{t.nume}</span>
+      </nav>
+
+      <header class="cap">
+        <h1>{t.nume}</h1>
+        {t.localitate && <p class="cap__unde">{t.localitate}</p>}
+      </header>
+
+      <blockquote class="citat">{t.text}</blockquote>
+      {t.legendaPoza && <p class="legenda">{t.legendaPoza}</p>}
+
+      <div class="actiuni">
+        {proiect && (
+          <a class="buton buton-primar" href={cale(`/parcelari/${proiect.slug}`)}>
+            Vezi parcela {proiect.nume}
+          </a>
+        )}
+        {t.lotId && (
+          <a class="buton buton-secundar" href={cale(`/?parcelare=${t.proiect}&lot=${t.lotId}`)}>
+            Vezi lotul {t.lot} pe hartă
+          </a>
+        )}
+        <a class="buton buton-secundar" href={FIRMA.telefonLink}>{FIRMA.telefon}</a>
+      </div>
+
+      {
+        date.length > 0 && (
+          <dl class="fisa fisa--recomandare">
+            {date.map(([k, v]) => (
+              <div>
+                <dt class="fisa__cheie">{k}</dt>
+                <dd class="fisa__valoare cifre">{v}</dd>
+              </div>
+            ))}
+          </dl>
+        )
+      }
+
+      {
+        lot && (
+          <p class="nota">
+            Lotul {t.lot} are {mp(lot.suprafata)} și s-a vândut cu {euro(lot.pret_total)} plus TVA.
+            {proiect && ` În ${proiect.nume} mai sunt ${proiect.statistici.disponibile} loturi libere.`}
+          </p>
+        )
+      }
+
+      <p class="nota">Recomandare fictivă, pusă pentru demonstrație.</p>
+    </div>
+  </article>
+</Baza>
+
+<script>
+  /**
+   * Peste datele generate la build punem ce s-a publicat din panou: pozele,
+   * textul și legenda. Aceeași regulă ca la restul demo-ului.
+   */
+  import { citeste } from '../../lib/depozit';
+
+  const nod = document.querySelector<HTMLElement>('[data-recomandare]');
+  const publicate = citeste().testimoniale;
+  if (nod && publicate) {
+    const t = publicate.find((x) => x.id === nod.dataset.recomandare);
+    if (t) {
+      const baza = nod.dataset.baza || '/';
+      const galerie = nod.querySelector('[data-galerie-recomandare]');
+      for (const loc of galerie?.querySelectorAll<HTMLElement>('[data-slot]') ?? []) {
+        const sursa = t.poze?.[Number(loc.dataset.slot)];
+        loc.querySelector('img')?.remove();
+        delete loc.dataset.plin;
+        if (!sursa) continue;
+        const img = document.createElement('img');
+        img.src = sursa.startsWith('data:') ? sursa : `${baza}/${sursa}`.replace(/([^:])\/{2,}/g, '$1/');
+        img.alt = t.legendaPoza ?? '';
+        loc.prepend(img);
+        loc.dataset.plin = 'da';
+      }
+      const citat = nod.querySelector('.citat');
+      if (citat && t.text) citat.textContent = t.text;
+    }
+  }
+</script>
+
+<style>
+  .continut {
+    max-width: 52rem;
+    margin-inline: auto;
+    padding: 2.5rem 1.25rem 0;
+  }
+
+  @media (min-width: 48rem) {
+    .continut {
+      padding-inline: 2rem;
+    }
+  }
+
+  .firimituri {
+    font-size: 0.8125rem;
+    color: var(--color-ink-3);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  .firimituri a {
+    color: var(--color-ink-2);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+
+  .cap {
+    margin-top: 1.25rem;
+  }
+
+  .cap h1 {
+    font-size: clamp(1.875rem, 5vw, 2.75rem);
+  }
+
+  .cap__unde {
+    margin-top: 0.35rem;
+    font-family: var(--font-mono);
+    font-size: 0.8125rem;
+    color: var(--color-ink-2);
+  }
+
+  /* Citatul e eroul paginii: pentru el a intrat omul aici. */
+  .citat {
+    margin: 1.75rem 0 0;
+    font-family: var(--font-serif);
+    font-size: clamp(1.125rem, 2.4vw, 1.375rem);
+    line-height: 1.55;
+  }
+
+  .legenda {
+    margin-top: 0.75rem;
+    font-size: 0.8125rem;
+    color: var(--color-ink-3);
+  }
+
+  .actiuni {
+    margin-top: 1.75rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.625rem;
+  }
+
+  .fisa--recomandare {
+    margin-top: 2.5rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--color-hairline);
+  }
+
+  .fisa__cheie {
+    font-weight: 500;
+  }
+
+  .fisa__valoare {
+    color: var(--color-ink-2);
+  }
+
+  .nota {
+    margin-top: 1.25rem;
+    font-size: 0.8125rem;
+    line-height: 1.5;
+    color: var(--color-ink-3);
+  }
+</style>

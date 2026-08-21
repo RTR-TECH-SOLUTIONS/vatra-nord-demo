@@ -17,8 +17,13 @@
  * script din pagină o rescrie, ca la restul demo-ului.
  */
 import { cale } from '../lib/cale';
-import { randDate, type Testimonial } from '../lib/testimoniale';
+import { randDate, pozaPrincipala, type Testimonial } from '../lib/testimoniale';
+import testimonialeJson from '../data/testimoniale.json';
 import type { Proiect } from '../lib/loturi';
+
+// Recomandările din build au pagină proprie; cele adăugate din panou, nu — ea
+// se generează la publicarea site-ului. Cardul lor rămâne card, fără link mort.
+const arePagina = new Set((testimonialeJson as unknown as Testimonial[]).map((t) => t.id));
 
 interface Props {
   testimoniale: Testimonial[];
@@ -52,14 +57,7 @@ const numeProiect = new Map(proiecte.map((p) => [p.slug, p.nume]));
 const toate = filtruProiect ? testimoniale.filter((t) => t.proiect === filtruProiect) : testimoniale;
 const lista = toate.slice(sari, limita === null ? undefined : sari + limita);
 
-/** Inițialele, pentru cardurile fără poză. */
-const initiale = (nume: string) =>
-  nume
-    .split(/\s+/)
-    .filter((c) => c.length > 2)
-    .slice(0, 2)
-    .map((c) => c[0].toUpperCase())
-    .join('') || nume.slice(0, 2).toUpperCase();
+
 ---
 
 {
@@ -73,44 +71,47 @@ const initiale = (nume: string) =>
       data-limita={limita === null ? '' : String(limita)}
       data-proiecte={JSON.stringify(Object.fromEntries(numeProiect))}
       data-baza={cale('/')}
+      data-pagini={[...arePagina].join(' ')}
     >
       <h2>{titlu}</h2>
       {intro && <p class="testimoniale__intro">{intro}</p>}
 
       <ul class="marturii">
-        {lista.map((t) => (
-          <li class="marturie">
-            {t.poza ? (
-              <img
-                class="marturie__foto"
-                src={t.poza.startsWith('data:') ? t.poza : cale(t.poza)}
-                alt={t.legendaPoza ?? `Lotul cumpărat de ${t.nume}`}
-                title={t.legendaPoza ?? undefined}
-                loading="lazy"
-                width="560"
-                height="560"
-              />
-            ) : (
-              <span class="marturie__initiale" aria-hidden="true">
-                {initiale(t.nume)}
+        {lista.map((t) => {
+          const poza = pozaPrincipala(t);
+          const legatura = arePagina.has(t.id) ? cale(`/recomandari/${t.id}`) : null;
+          return (
+            <li class="marturie">
+              <span class="marturie__foto">
+                {poza ? (
+                  <img
+                    src={poza.startsWith('data:') ? poza : cale(poza)}
+                    alt={t.legendaPoza ?? `Lotul cumpărat de ${t.nume}`}
+                    loading="lazy"
+                    width="560"
+                    height="560"
+                  />
+                ) : (
+                  <span class="marturie__gol">Poză</span>
+                )}
               </span>
-            )}
 
-            <div class="marturie__text">
-              <p class="marturie__cine">
-                {t.nume}
-                {t.localitate && <span class="marturie__unde"> — {t.localitate}</span>}
-              </p>
-              <p class="marturie__date cifre">{randDate(t, t.proiect ? numeProiect.get(t.proiect) : null)}</p>
-              <blockquote>{t.text}</blockquote>
-              {t.lotId && (
-                <a class="buton buton-secundar marturie__harta" href={cale(`/?parcelare=${t.proiect}&lot=${t.lotId}`)}>
-                  Vezi lotul {t.lot} pe hartă
-                </a>
-              )}
-            </div>
-          </li>
-        ))}
+              <div class="marturie__text">
+                <p class="marturie__cine">
+                  {legatura ? <a href={legatura}>{t.nume}</a> : t.nume}
+                  {t.localitate && <span class="marturie__unde"> — {t.localitate}</span>}
+                </p>
+                <p class="marturie__date cifre">{randDate(t, t.proiect ? numeProiect.get(t.proiect) : null)}</p>
+                <blockquote>{t.text}</blockquote>
+                {t.lotId && (
+                  <a class="buton buton-secundar marturie__harta" href={cale(`/?parcelare=${t.proiect}&lot=${t.lotId}`)}>
+                    Vezi lotul {t.lot} pe hartă
+                  </a>
+                )}
+              </div>
+            </li>
+          );
+        })}
       </ul>
 
       {nota && <p class="testimoniale__nota">{nota}</p>}
@@ -143,7 +144,11 @@ const initiale = (nume: string) =>
     max-width: 52rem;
   }
 
+  /* Tot cardul deschide pagina recomandării: linkul din nume se întinde peste
+     el cu un pseudoelement, iar butonul spre hartă se ridică deasupra, ca să
+     rămână un al doilea drum, nu o capcană. */
   .marturie {
+    position: relative;
     display: grid;
     grid-template-columns: 8.5rem minmax(0, 1fr);
     gap: 1.25rem;
@@ -152,30 +157,71 @@ const initiale = (nume: string) =>
     border: 1px solid var(--color-hairline);
     border-radius: var(--radius-panou);
     background: var(--color-paper-3);
+    transition:
+      border-color 150ms ease-out,
+      background-color 150ms ease-out;
+  }
+
+  .marturie:has(.marturie__cine a) {
+    cursor: pointer;
+  }
+
+  .marturie:has(.marturie__cine a):hover {
+    border-color: var(--color-ink-3);
+    background: var(--color-paper);
+  }
+
+  /* Numele se subliniază când treci peste card: fără el, nimic nu spune că
+     recomandarea are pagina ei. */
+  .marturie:hover .marturie__cine a {
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+
+  .marturie__cine a {
+    color: inherit;
+  }
+
+  .marturie__cine a::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: var(--radius-panou);
+  }
+
+  .marturie__cine a:focus-visible::after {
+    outline: 2px solid var(--color-ink);
+    outline-offset: 2px;
+  }
+
+  .marturie__harta {
+    position: relative;
+    z-index: 1;
   }
 
   /* Pătrat cu colțuri rotunjite, nu cerc: în cerc intră un portret de studio,
-     iar aici poza e a locului, nu a feței. */
+     iar aici poza e a locului, nu a feței. Cât timp nu e pusă niciuna, locul
+     rămâne gol; se umple din panou, cu poza primită de la cumpărător. */
   .marturie__foto {
-    width: 8.5rem;
-    height: 8.5rem;
-    object-fit: cover;
-    border-radius: var(--radius-panou);
-    background: var(--color-paper-2);
-    display: block;
-  }
-
-  .marturie__initiale {
     display: grid;
     place-content: center;
     width: 8.5rem;
     height: 8.5rem;
     border-radius: var(--radius-panou);
-    background: var(--color-accent);
-    color: var(--color-paper-3);
-    font-family: var(--font-mono);
-    font-size: 1.375rem;
-    letter-spacing: 0.04em;
+    background: var(--color-paper-2);
+    overflow: hidden;
+  }
+
+  .marturie__foto img {
+    width: 8.5rem;
+    height: 8.5rem;
+    object-fit: cover;
+    display: block;
+  }
+
+  .marturie__gol {
+    font-size: 0.75rem;
+    color: var(--color-ink-3);
   }
 
   .marturie__cine {
@@ -211,6 +257,12 @@ const initiale = (nume: string) =>
     padding: 0.45rem 0.9rem;
   }
 
+  .marturie__deschide {
+    margin-top: 0.35rem;
+    font-size: 0.75rem;
+    color: var(--color-ink-3);
+  }
+
   .testimoniale__nota {
     margin-top: 1.25rem;
     font-size: 0.8125rem;
@@ -225,12 +277,9 @@ const initiale = (nume: string) =>
       padding: 1rem;
     }
     .marturie__foto,
-    .marturie__initiale {
+    .marturie__foto img {
       width: 5rem;
       height: 5rem;
-    }
-    .marturie__initiale {
-      font-size: 1rem;
     }
     .marturie blockquote {
       font-size: 1rem;
@@ -273,29 +322,27 @@ const initiale = (nume: string) =>
       const scapa = (s: string) =>
         s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
       const adresa = (p: string) => (p.startsWith('data:') ? p : `${baza}/${p}`.replace(/\/{2,}/g, '/'));
-      const initiale = (nume: string) =>
-        nume
-          .split(/\s+/)
-          .filter((c) => c.length > 2)
-          .slice(0, 2)
-          .map((c) => c[0].toUpperCase())
-          .join('') || nume.slice(0, 2).toUpperCase();
+      const pagini = new Set((sectiune.dataset.pagini || '').split(' ').filter(Boolean));
 
       const ul = sectiune.querySelector('.marturii');
       if (ul) {
         ul.innerHTML = lista
           .map((t: Testimonial) => {
             const legenda = t.legendaPoza ? scapa(t.legendaPoza) : '';
-            const foto = t.poza
-              ? `<img class="marturie__foto" src="${scapa(adresa(t.poza))}" alt="${legenda || `Lotul cumpărat de ${scapa(t.nume)}`}" ${legenda ? `title="${legenda}"` : ''} loading="lazy" width="560" height="560" />`
-              : `<span class="marturie__initiale" aria-hidden="true">${scapa(initiale(t.nume))}</span>`;
+            const poza = t.poze?.find(Boolean) ?? null;
+            const foto = poza
+              ? `<span class="marturie__foto"><img src="${scapa(adresa(poza))}" alt="${legenda || `Lotul cumpărat de ${scapa(t.nume)}`}" loading="lazy" width="560" height="560" /></span>`
+              : '<span class="marturie__foto"><span class="marturie__gol">Poză</span></span>';
             const unde = t.proiect ? (numeProiect[t.proiect] ?? null) : null;
             const harta = t.lotId
               ? `<a class="buton buton-secundar marturie__harta" href="${scapa(`${baza}/?parcelare=${t.proiect ?? ''}&lot=${t.lotId}`.replace(/([^:])\/{2,}/g, '$1/'))}">Vezi lotul ${scapa(t.lot ?? '')} pe hartă</a>`
               : '';
+            const numeHtml = pagini.has(t.id)
+              ? `<a href="${scapa(`${baza}/recomandari/${t.id}`.replace(/([^:])\/{2,}/g, '$1/'))}">${scapa(t.nume)}</a>`
+              : scapa(t.nume);
             return `<li class="marturie">${foto}
               <div class="marturie__text">
-                <p class="marturie__cine">${scapa(t.nume)}${t.localitate ? `<span class="marturie__unde"> — ${scapa(t.localitate)}</span>` : ''}</p>
+                <p class="marturie__cine">${numeHtml}${t.localitate ? `<span class="marturie__unde"> — ${scapa(t.localitate)}</span>` : ''}</p>
                 <p class="marturie__date cifre">${scapa(randDate(t, unde))}</p>
                 <blockquote>${scapa(t.text)}</blockquote>
                 ${harta}
