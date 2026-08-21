@@ -16,6 +16,14 @@
   --color-accent: #2f5d46;
   --color-accent-alt: #244a38;
 
+  /* Antetul e bandă închisă, ca la referință, dar verdele e al nostru:
+     coborât din accent, nu copiat. Al lor bate în brad, al nostru rămâne mai
+     rece, mai aproape de verdele de pe planșă. */
+  --color-antet: #16362a;
+  --color-antet-linie: #24503e;
+  --color-antet-text: #eef2ee;
+  --color-antet-sters: #a8bdb1;
+
   /* Cod de semnalizare pentru statusul lotului. Separat de paleta de brand. */
   --color-disponibil: #2f8f57;
   --color-rezervat: #c08a2a;
@@ -150,6 +158,64 @@
   .buton-secundar:hover {
     border-color: var(--color-ink-3);
     background: var(--color-paper-2);
+  }
+
+  /* --------------------------------------------------------------- antet */
+  /* `antet` era deja luat de antetul de conținut al paginilor, iar clasa mea
+     îl vopsea în verde. De aici numele lung. */
+  .antet-bara {
+    background: var(--color-antet);
+    border-bottom: 1px solid var(--color-antet-linie);
+    color: var(--color-antet-text);
+  }
+
+  .antet__nume {
+    color: var(--color-antet-text);
+  }
+
+  .antet__tagline {
+    color: var(--color-antet-sters);
+  }
+
+  .antet__legatura {
+    color: var(--color-antet-sters);
+  }
+
+  .antet__legatura:hover,
+  .antet__legatura[aria-current='page'] {
+    color: var(--color-antet-text);
+  }
+
+  /* Butonul de telefon iese în față pe fond închis dacă e deschis, nu invers. */
+  .buton-antet {
+    background: var(--color-antet-text);
+    color: var(--color-antet);
+  }
+
+  .buton-antet:hover {
+    background: #fff;
+  }
+
+  .buton-antet-gol {
+    background: transparent;
+    color: var(--color-antet-text);
+    border: 1px solid var(--color-antet-linie);
+  }
+
+  .buton-antet-gol:hover {
+    border-color: var(--color-antet-sters);
+    background: rgb(255 255 255 / 0.06);
+  }
+
+  .meniu-mobil {
+    background: var(--color-antet);
+    border-bottom: 1px solid var(--color-antet-linie);
+    color: var(--color-antet-text);
+  }
+
+  .meniu-mobil a {
+    border-bottom: 1px solid var(--color-antet-linie);
+    color: var(--color-antet-text);
   }
 
   .eticheta {
