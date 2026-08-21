@@ -37,6 +37,11 @@ jobs:
         env:
           SITE_URL: https://rtr-tech-solutions.github.io
           SITE_BASE: /vatra-nord-demo
+          # Tokenul e public prin natura lui (ajunge oricum în JS-ul din
+          # browser), dar stă în secretele repo-ului ca să nu fie în clar în
+          # istoricul git și să se poată roti fără commit. Fără el, build-ul
+          # cade pe Esri, care e doar pentru preview.
+          PUBLIC_MAPBOX_TOKEN: ${{ secrets.PUBLIC_MAPBOX_TOKEN }}
 
   deploy:
     needs: build
