@@ -330,24 +330,30 @@ const proiecte = proiecteJson as unknown as Proiect[];
             </div>
 
             <div class="camp-admin">
-              <label for="tst-poza">Poza de la cumpărător</label>
-              <input type="file" id="tst-poza" accept="image/*" />
-              <p class="ajutor" id="tst-poza-stare">Nicio poză. Poate rămâne și fără.</p>
+              <label>Pozele de la cumpărător</label>
               <p class="ajutor">
-                Merge orice poză de pe telefon: cumpărătorul pe teren, la borne, la semnat, sau
-                casa ridicată după un an. Se micșorează automat.
+                Trei locuri, ca pe pagina recomandării: una mare și două mai mici. Merge orice poză
+                de pe telefon — cumpărătorul pe teren, la borne, la semnat, sau casa ridicată după
+                un an. Se micșorează automat.
               </p>
+              <ul class="locuri-poze" id="locuri-tst">
+                {
+                  [0, 1, 2].map((i) => (
+                    <li data-loc={i}>
+                      <span class="locuri-poze__eticheta">{i === 0 ? 'Poza mare' : `Poza ${i + 1}`}</span>
+                      <img class="locuri-poze__previzualizare" alt="" hidden />
+                      <input type="file" id={`tst-poza-${i}`} accept="image/*" />
+                      <button type="button" class="buton buton-secundar" data-scoate-tst={i} hidden>Scoate</button>
+                    </li>
+                  ))
+                }
+              </ul>
             </div>
 
             <div class="camp-admin">
-              <label for="tst-legenda">Legenda pozei</label>
-              <input type="text" id="tst-legenda" autocomplete="off" placeholder="Casa pe lotul F31, la un an de la cumpărare." />
+              <label for="tst-legenda">Legenda pozelor</label>
+              <input type="text" id="tst-legenda" autocomplete="off" placeholder="Casa pe lotul 1, la un an de la cumpărare." />
             </div>
-
-            <figure class="previzualizare" id="tst-previzualizare" hidden>
-              <img id="tst-previzualizare-img" alt="Previzualizarea pozei alese" />
-              <button type="button" id="tst-scoate-poza" class="buton buton-secundar">Scoate poza</button>
-            </figure>
           </div>
         </details>
       </div>

@@ -31,9 +31,20 @@ export interface Testimonial {
   /** Luna cumpărării, „2025-05”. Anul singur e prea vag ca să conteze. */
   data: string | null;
   text: string;
-  /** Cale către fișier sau, pentru pozele puse din panou, data URL. */
-  poza: string | null;
+  /**
+   * Trei locuri de poză, în ordinea din galeria de sus a paginii recomandării:
+   * una mare și două mai mici. Prima e și miniatura din card. Locurile goale
+   * rămân `null`, ca a doua poză să nu urce în locul primei când e ștearsă.
+   *
+   * Sunt căi către fișiere sau, pentru pozele puse din panou, data URL-uri.
+   */
+  poze: (string | null)[];
   legendaPoza: string | null;
+}
+
+/** Miniatura recomandării: prima poză pusă, dacă e vreuna. */
+export function pozaPrincipala(t: Testimonial): string | null {
+  return t.poze?.find(Boolean) ?? null;
 }
 
 const LUNI = [

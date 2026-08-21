@@ -441,7 +441,7 @@ function adaugaTestimonial() {
     suprafata: null,
     data: null,
     text: '',
-    poza: null,
+    poze: [null, null, null],
     legendaPoza: null,
   };
   testimoniale.push(t);
@@ -498,7 +498,8 @@ function randezaTestimoniale() {
       ? testimoniale
           .map((t) => {
             const nume = t.nume || 'fără nume';
-            const unde = [t.lot ? `lotul ${t.lot}` : null, t.poza ? 'cu poză' : 'fără poză']
+            const cate = t.poze?.filter(Boolean).length ?? 0;
+            const unde = [t.lot ? `lotul ${t.lot}` : null, cate ? `${cate} poze` : 'fără poze']
               .filter(Boolean)
               .join(' · ');
             return `<li><button type="button" data-testimonial="${t.id}" aria-pressed="${t.id === testimonialSelectat}">${nume}<span class="unde">${unde}</span></button></li>`;
@@ -539,21 +540,7 @@ function randezaTestimoniale() {
   set('tst-data', t.data ?? '');
   set('tst-text', t.text);
   set('tst-legenda', t.legendaPoza ?? '');
-
-  const previzualizare = el('tst-previzualizare');
-  const img = el<HTMLImageElement>('tst-previzualizare-img');
-  const stare = el('tst-poza-stare');
-  if (previzualizare && img) {
-    if (t.poza) {
-      previzualizare.hidden = false;
-      if (img.src !== t.poza) img.src = t.poza;
-      if (stare) stare.textContent = t.poza.startsWith('data:') ? 'Poză pusă din panou.' : 'Poză din datele demo-ului.';
-    } else {
-      previzualizare.hidden = true;
-      img.removeAttribute('src');
-      if (stare) stare.textContent = 'Nicio poză. Poate rămâne și fără.';
-    }
-  }
+  randeazaPozeTestimonial();
 }
 
 /**
@@ -643,6 +630,22 @@ function legaPozeParcelare() {
   }
 }
 
+/** Cele trei locuri de poză ale recomandării alese. */
+function randeazaPozeTestimonial() {
+  const t = testimonialDupaId(testimonialSelectat);
+  for (const rand of document.querySelectorAll<HTMLElement>('#locuri-tst [data-loc]')) {
+    const sursa = t?.poze?.[Number(rand.dataset.loc)] ?? null;
+    const img = rand.querySelector<HTMLImageElement>('.locuri-poze__previzualizare');
+    const scoate = rand.querySelector<HTMLButtonElement>('[data-scoate-tst]');
+    if (img) {
+      img.hidden = !sursa;
+      if (sursa) img.src = sursa;
+      else img.removeAttribute('src');
+    }
+    if (scoate) scoate.hidden = !sursa;
+  }
+}
+
 function legaTestimoniale() {
   const selectProiect = el<HTMLSelectElement>('tst-proiect');
   if (selectProiect) {
@@ -688,30 +691,38 @@ function legaTestimoniale() {
   el<HTMLButtonElement>('testimonial-nou')?.addEventListener('click', adaugaTestimonial);
   el<HTMLButtonElement>('sterge-testimonial')?.addEventListener('click', stergeTestimonial);
 
-  el<HTMLInputElement>('tst-poza')?.addEventListener('change', async (e) => {
-    const camp = e.target as HTMLInputElement;
-    const fisier = camp.files?.[0];
-    const t = testimonialDupaId(testimonialSelectat);
-    if (!fisier || !t) return;
-    anunta('Se pregătește poza…', 'lucru');
-    try {
-      t.poza = await micsoreazaPoza(fisier);
-      anunta('Poza a fost pusă. Nu uita legenda.');
-    } catch (err) {
-      anunta(`Nu am putut folosi poza (${(err as Error).message}).`, 'eroare');
-    } finally {
-      camp.value = '';
-      randeaza();
-    }
-  });
+  for (let i = 0; i < 3; i += 1) {
+    el<HTMLInputElement>(`tst-poza-${i}`)?.addEventListener('change', async (e) => {
+      const camp = e.target as HTMLInputElement;
+      const fisier = camp.files?.[0];
+      const t = testimonialDupaId(testimonialSelectat);
+      if (!fisier || !t) return;
+      anunta('Se pregătește poza…', 'lucru');
+      try {
+        const lista = t.poze ? [...t.poze] : [];
+        while (lista.length < 3) lista.push(null);
+        lista[i] = await micsoreazaPoza(fisier);
+        t.poze = lista;
+        anunta('Poza a fost pusă. Nu uita legenda.');
+      } catch (err) {
+        anunta(`Nu am putut folosi poza (${(err as Error).message}).`, 'eroare');
+      } finally {
+        camp.value = '';
+        randeazaPozeTestimonial();
+        randeaza();
+      }
+    });
+  }
 
-  el<HTMLButtonElement>('tst-scoate-poza')?.addEventListener('click', () => {
-    const t = testimonialDupaId(testimonialSelectat);
-    if (!t) return;
-    t.poza = null;
-    t.legendaPoza = null;
-    randeaza();
-  });
+  for (const buton of document.querySelectorAll<HTMLButtonElement>('#locuri-tst [data-scoate-tst]')) {
+    buton.addEventListener('click', () => {
+      const t = testimonialDupaId(testimonialSelectat);
+      if (!t?.poze) return;
+      t.poze[Number(buton.dataset.scoateTst)] = null;
+      randeazaPozeTestimonial();
+      randeaza();
+    });
+  }
 }
 
 /* --------------------------------------------------------------- pinuri */

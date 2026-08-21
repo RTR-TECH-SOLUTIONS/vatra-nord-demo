@@ -283,6 +283,78 @@
   }
 }
 
+/* --------------------------------------------------------- galeria de sus */
+/*
+  Trei locuri de poză: unul cât jumătate din suprafață, la stânga pe toată
+  înălțimea, și două de câte un sfert, suprapuse la dreapta. Folosită și pe
+  pagina parcelării, și pe cea a recomandării. Cât timp locurile sunt goale,
+  rămân goale: un chenar care spune ce urmează arată mai onest decât o poză de
+  stoc pusă ca să nu fie alb.
+*/
+@layer components {
+  .galerie {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr 1fr;
+    gap: 4px;
+    height: clamp(17rem, 46vh, 28rem);
+    background: var(--color-hairline);
+  }
+
+  .galerie__loc {
+    position: relative;
+    margin: 0;
+    overflow: hidden;
+    background: var(--color-paper-2);
+    display: grid;
+    place-content: center;
+  }
+
+  .galerie__loc--mare {
+    grid-row: 1 / 3;
+  }
+
+  .galerie__loc img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .galerie__gol {
+    display: grid;
+    gap: 0.2rem;
+    justify-items: center;
+    text-align: center;
+    padding: 0.75rem;
+    font-size: 0.8125rem;
+    color: var(--color-ink-3);
+  }
+
+  .galerie__gol em {
+    font-style: normal;
+    font-size: 0.6875rem;
+    opacity: 0.75;
+  }
+
+  .galerie__loc[data-plin] .galerie__gol {
+    display: none;
+  }
+
+  @media (max-width: 47.99rem) {
+    .galerie {
+      grid-template-columns: 1fr 1fr;
+      grid-template-rows: 12rem 7rem;
+      height: auto;
+    }
+    .galerie__loc--mare {
+      grid-column: 1 / 3;
+      grid-row: 1;
+    }
+  }
+}
+
 /* ------------------------------------------------------------------- pinuri */
 /*
   Marcajul unei proprietăți pe hartă: disc cu marca, panglică de stare sub el,
@@ -338,13 +410,23 @@
     line-height: 1;
   }
 
+  /* Cu preț pe disc, ierarhia se inversează: cifra e informația pentru care
+     omul se oprește, iar inițialele sunt doar cum se cheamă locul. */
+  .pin--cu-cifra .pin__marca {
+    font-size: 10px;
+    font-weight: 400;
+    letter-spacing: 0.06em;
+    opacity: 0.8;
+  }
+
   /* Cifra din disc: mai mică decât marca, dar nu ștearsă — e informația
      pentru care omul dă click. */
   .pin__sub {
-    font-size: 9px;
-    line-height: 1;
-    letter-spacing: -0.02em;
-    color: rgb(255 255 255 / 0.88);
+    font-size: 12.5px;
+    font-weight: 600;
+    line-height: 1.05;
+    letter-spacing: -0.03em;
+    color: #fff;
     white-space: nowrap;
   }
 
