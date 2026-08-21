@@ -10,7 +10,7 @@ setWorkerUrl(cale('/maplibre/maplibre-gl-worker.mjs'));
 
 import { STATUSURI, ORDINE_STATUS, euro, mp, ml, dataRo } from '../lib/loturi';
 import type { Proiect, ProprietatiLot, StatusLot } from '../lib/loturi';
-import { styleBasemap, SURSA_VECTOR, type ModBasemap } from '../lib/basemap';
+import { styleBasemap, FONT_HARTA, SURSA_VECTOR, type ModBasemap } from '../lib/basemap';
 import { aplica as aplicaModificari, citeste as citesteDepozit, numaraModificari } from '../lib/depozit';
 import { edificabilLot, potentialConstruire, silueta } from '../lib/parcelare.js';
 import { elementPin, marcaDinNume, STARI_PIN, type Pin } from '../lib/pin';
@@ -18,9 +18,8 @@ import { FIRMA } from '../lib/firma';
 
 type ColectieLoturi = GeoJSON.FeatureCollection<GeoJSON.Polygon, ProprietatiLot>;
 
-// Serverul de glife (OpenFreeMap sau MapTiler) servește familia Noto Sans;
-// fontul implicit al specificației, Open Sans, dă 404 pe amândouă.
-const FONT_ETICHETA = ['Noto Sans Bold'];
+// Fontul vine din basemap, pentru că depinde de cine servește glifele.
+const FONT_ETICHETA = FONT_HARTA;
 
 /** Straturile de text ale fundalului, care trebuie ridicate peste loturi. */
 const ETICHETE_DEASUPRA = [
@@ -49,7 +48,7 @@ const idLinie = (s: StatusLot) => `loturi-${s}-contur`;
  */
 const OPACITATE: Record<ModBasemap, Record<StatusLot, number>> = {
   harta: { disponibil: 0.82, rezervat: 0.72, in_pregatire: 0.46, vandut: 0.3 },
-  satelit: { disponibil: 0.78, rezervat: 0.7, in_pregatire: 0.5, vandut: 0.36 },
+  teren: { disponibil: 0.78, rezervat: 0.7, in_pregatire: 0.5, vandut: 0.36 },
 };
 
 /**
@@ -97,7 +96,9 @@ interface Filtre {
 let loturi: ColectieLoturi;
 let harta: MapLibre;
 let popup: Popup | null = null;
-let modBasemap: ModBasemap = 'satelit';
+// Implicit pornim pe hartă, nu pe satelit: la scara la care se vede tot
+// portofoliul, harta se citește, iar satelitul e pastă verde.
+let modBasemap: ModBasemap = 'harta';
 let lotSelectat: string | null = null;
 let poiVizibil = false;
 let straturiPuse = false;
@@ -233,6 +234,17 @@ function adaugaStraturi() {
   // Pe hârtie scrisul e tuș cu halo deschis, pe fotografie e alb cu halo
   // închis. Aceleași straturi, două regimuri de lizibilitate.
   const pePlansa = modBasemap === 'harta';
+
+  /*
+    Stilurile Mapbox își au etichetele în straturi proprii, iar dacă punem
+    loturile peste ele, denumirile de străzi dispar exact acolo unde contează.
+    Le inserăm sub primul strat de simboluri, ca scrisul să rămână deasupra.
+    Fără stil Mapbox (fallback pe planșa noastră), `sub` rămâne gol și
+    straturile se adaugă la vârf, ca înainte.
+  */
+  const primulSimbol = harta.getStyle().layers?.find((l) => l.type === 'symbol')?.id;
+  const sub = (strat: Parameters<typeof harta.addLayer>[0]) =>
+    primulSimbol ? harta.addLayer(strat, primulSimbol) : harta.addLayer(strat);
   const textPeste = pePlansa ? '#2b3134' : '#ffffff';
   const haloPeste = pePlansa ? 'rgba(247,244,238,0.88)' : 'rgba(0,0,0,0.7)';
   const conturPeste = pePlansa ? '#15181a' : '#ffffff';
@@ -252,7 +264,7 @@ function adaugaStraturi() {
       })),
     },
   });
-  harta.addLayer({
+  sub({
     id: 'hotar-fond',
     type: 'fill',
     source: 'hotare',
@@ -262,7 +274,7 @@ function adaugaStraturi() {
       'fill-opacity': pePlansa ? 0.9 : 0.12,
     },
   });
-  harta.addLayer({
+  sub({
     id: 'hotar-linie',
     type: 'line',
     source: 'hotare',
@@ -282,14 +294,14 @@ function adaugaStraturi() {
     // Conturul urmează ierarhia umpluturii: lotul de vânzare are muchie
     // fermă, cel vândut abia o schiță, ca grila să nu devină un gard uniform.
     const spor = cfg.vandabil ? 0.35 : 0;
-    harta.addLayer({
+    sub({
       id: idFill(s),
       type: 'fill',
       source: SURSA,
       paint: { 'fill-color': cfg.culoare, 'fill-opacity': opacitateFill(s, pragDezvaluire) as never },
       filter: expresieFiltru(s) as never,
     });
-    harta.addLayer({
+    sub({
       id: idLinie(s),
       type: 'line',
       source: SURSA,
@@ -333,7 +345,7 @@ function adaugaStraturi() {
   // Drumurile parcelării, generate de motor odată cu loturile. Le desenăm ca
   // suprafață, nu ca simplu gol între rânduri: se vede că e o stradă.
   harta.addSource('drumuri-parcelare', { type: 'geojson', data: cale('/date/drumuri.geojson') });
-  harta.addLayer({
+  sub({
     id: 'drumuri-parcelare-fond',
     type: 'fill',
     source: 'drumuri-parcelare',
@@ -344,7 +356,7 @@ function adaugaStraturi() {
       'fill-opacity': pePlansa ? 0.95 : 0.5,
     },
   });
-  harta.addLayer({
+  sub({
     id: 'drumuri-parcelare-contur',
     type: 'line',
     source: 'drumuri-parcelare',
@@ -358,7 +370,7 @@ function adaugaStraturi() {
   // plată nu spune nimic; clădirile dau adâncime și reper. Doar pe satelit:
   // pe planșă casele sunt desenate în plan, ca pe orice plan de situație, iar
   // niște volume gri peste hârtie ar strica exact ce face stilul special.
-  if (modBasemap === 'satelit' && harta.getSource(SURSA_VECTOR)) {
+  if (modBasemap === 'teren' && harta.getSource(SURSA_VECTOR)) {
     harta.addLayer({
       id: 'cladiri-3d',
       type: 'fill-extrusion',
@@ -961,7 +973,7 @@ function schimbaBasemap(mod: ModBasemap) {
   modBasemap = mod;
   marcheazaFundal();
   straturiPuse = false;
-  harta.setStyle(styleBasemap(mod));
+  void styleBasemap(mod).then((stil) => harta.setStyle(stil));
   harta.once('styledata', () => {
     adaugaStraturi();
     comutaPoi(poiVizibil);
@@ -1602,12 +1614,15 @@ async function porneste() {
 
   harta = new MapLibre({
     container,
-    style: styleBasemap(modBasemap),
+    style: await styleBasemap(modBasemap),
     center: camera.center,
     zoom: camera.zoom,
     bearing: camera.bearing,
     pitch: redusa() ? 0 : camera.pitch,
     maxPitch: 80,
+    // Stilurile Mapbox conțin proprietăți din specificația lor, nu din a
+    // MapLibre. Validarea le-ar respinge pe toate; randarea le ignoră.
+    validateStyle: false,
     // Globul se vede abia sub zoom 5, deci limita de dinainte îl făcea
     // inaccesibil.
     minZoom: 1.5,
