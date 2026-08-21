@@ -252,6 +252,33 @@ const proiecte = proiecteJson as unknown as Proiect[];
         </details>
 
         <details class="grup">
+          <summary class="eticheta-grup">Pozele parcelării</summary>
+
+          <p class="ajutor">
+            Cele trei poze cu care se deschide pagina parcelării: una mare și două mai mici. Pune
+            poze de pe teren, nu randări. Cât timp lipsesc, locurile rămân goale pe site.
+          </p>
+
+          <div class="camp-admin">
+            <label for="poze-proiect">Parcelarea</label>
+            <select id="poze-proiect"></select>
+          </div>
+
+          <ul class="locuri-poze" id="locuri-poze">
+            {
+              [0, 1, 2].map((i) => (
+                <li data-loc={i}>
+                  <span class="locuri-poze__eticheta">{i === 0 ? 'Poza mare' : `Poza ${i + 1}`}</span>
+                  <img class="locuri-poze__previzualizare" alt="" hidden />
+                  <input type="file" id={`poza-${i}`} accept="image/*" />
+                  <button type="button" class="buton buton-secundar" data-scoate={i} hidden>Scoate</button>
+                </li>
+              ))
+            }
+          </ul>
+        </details>
+
+        <details class="grup">
           <summary class="eticheta-grup">Testimoniale</summary>
 
           <p class="ajutor">
@@ -283,15 +310,13 @@ const proiecte = proiecteJson as unknown as Proiect[];
               <select id="tst-proiect"></select>
             </div>
 
-            <div class="pereche">
-              <div class="camp-admin">
-                <label for="tst-lot">Codul lotului</label>
-                <input type="text" id="tst-lot" autocomplete="off" placeholder="F31" />
-              </div>
-              <div class="camp-admin">
-                <label for="tst-suprafata">Suprafață (m²)</label>
-                <input type="number" id="tst-suprafata" min="1" step="1" />
-              </div>
+            <!-- Lotul se alege din inventar, nu se scrie de mână: din el ies
+                 codul, suprafața și butonul „Vezi lotul pe hartă” de sub
+                 recomandare. Un cod scris greșit ar duce în gol. -->
+            <div class="camp-admin">
+              <label for="tst-lot">Lotul cumpărat</label>
+              <select id="tst-lot"></select>
+              <p class="ajutor" id="tst-lot-date">Alege lotul ca să apară „Vezi lotul pe hartă”.</p>
             </div>
 
             <div class="camp-admin">
@@ -308,6 +333,10 @@ const proiecte = proiecteJson as unknown as Proiect[];
               <label for="tst-poza">Poza de la cumpărător</label>
               <input type="file" id="tst-poza" accept="image/*" />
               <p class="ajutor" id="tst-poza-stare">Nicio poză. Poate rămâne și fără.</p>
+              <p class="ajutor">
+                Merge orice poză de pe telefon: cumpărătorul pe teren, la borne, la semnat, sau
+                casa ridicată după un an. Se micșorează automat.
+              </p>
             </div>
 
             <div class="camp-admin">
@@ -596,6 +625,36 @@ const proiecte = proiecteJson as unknown as Proiect[];
     font-family: var(--font-mono);
     font-size: 0.6875rem;
     color: var(--color-ink-3);
+  }
+
+  /* Cele trei locuri de poză, în aceeași proporție ca pe site: unul lat, două
+     mici. Ce vezi în panou e ce iese pe pagină. */
+  .locuri-poze {
+    display: grid;
+    gap: 0.75rem;
+    margin-top: 0.75rem;
+  }
+
+  .locuri-poze li {
+    display: grid;
+    gap: 0.375rem;
+  }
+
+  .locuri-poze__eticheta {
+    font-size: 0.75rem;
+    color: var(--color-ink-2);
+  }
+
+  .locuri-poze__previzualizare {
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    object-fit: cover;
+    border-radius: var(--radius-mic);
+    background: var(--color-paper-2);
+  }
+
+  .locuri-poze input[type='file'] {
+    font-size: 0.75rem;
   }
 
   .previzualizare {

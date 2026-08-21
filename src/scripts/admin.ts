@@ -67,6 +67,8 @@ let baza: LotAdmin[] = [];
 let loturi: LotAdmin[] = [];
 /** Parcelările create din panou, peste cele generate la build. */
 let proiecteNoi: Proiect[] = [];
+/** Pozele de prezentare, pe slug de parcelare: cel mult trei, cu goluri. */
+let pozeParcelare: Record<string, (string | null)[]> = {};
 let selectie: string[] = [];
 let unealta: Unealta = 'navigare';
 let idDesenTeren: string | number | null = null;
@@ -197,6 +199,7 @@ async function incarca() {
   // Parcelările create într-o sesiune anterioară intră înapoi în listă înainte
   // de loturi, ca loturile lor să aibă unde să se lipească.
   proiecteNoi = d.proiecteNoi.map((p) => ({ ...p }));
+  pozeParcelare = { ...d.pozeParcelare };
   for (const p of proiecteNoi) {
     if (proiectDupaSlug.has(p.slug)) continue;
     proiecte.push(p);
@@ -265,6 +268,7 @@ function calculeazaDepozit(): Omit<Depozit, 'versiune' | 'actualizat'> {
     pinuri: pinuriDePublicat,
     testimoniale: testimonialeDePublicat,
     proiecteNoi: proiecteDePublicat,
+    pozeParcelare,
   };
 }
 
@@ -433,6 +437,7 @@ function adaugaTestimonial() {
     localitate: null,
     proiect: proiecte[0]?.slug ?? null,
     lot: null,
+    lotId: null,
     suprafata: null,
     data: null,
     text: '',
@@ -523,8 +528,14 @@ function randezaTestimoniale() {
   set('tst-nume', t.nume);
   set('tst-localitate', t.localitate ?? '');
   set('tst-proiect', t.proiect ?? '');
-  set('tst-lot', t.lot ?? '');
-  set('tst-suprafata', t.suprafata ? String(t.suprafata) : '');
+  umpleLoturiTestimonial(t.proiect ?? '');
+  set('tst-lot', t.lotId ?? '');
+  const date = el('tst-lot-date');
+  if (date) {
+    date.textContent = t.lotId
+      ? `Lotul ${t.lot ?? '?'}${t.suprafata ? `, ${mp(t.suprafata)}` : ''}. Sub recomandare apare „Vezi lotul pe hartă”.`
+      : 'Alege lotul ca să apară „Vezi lotul pe hartă”.';
+  }
   set('tst-data', t.data ?? '');
   set('tst-text', t.text);
   set('tst-legenda', t.legendaPoza ?? '');
@@ -545,6 +556,93 @@ function randezaTestimoniale() {
   }
 }
 
+/**
+ * Lista de loturi din care se alege cel cumpărat. Restrânsă la parcelarea
+ * aleasă, dacă e una: altfel omul caută prin tot portofoliul ca să găsească un
+ * lot pe care oricum îl știe după parcelare.
+ */
+function umpleLoturiTestimonial(slug: string) {
+  const sel = el<HTMLSelectElement>('tst-lot');
+  if (!sel) return;
+  const inainte = sel.value;
+  const alese = loturi.filter((l) => !slug || l.proiect === slug);
+  sel.innerHTML =
+    '<option value="">Fără lot anume</option>' +
+    alese
+      .map((l) => {
+        const p = proiectDupaSlug.get(l.proiect);
+        return `<option value="${l.id}">Lotul ${l.cod}${p ? `, ${p.nume}` : ''} · ${mp(l.suprafata)} · ${STATUSURI[l.status].eticheta}</option>`;
+      })
+      .join('');
+  if ([...sel.options].some((o) => o.value === inainte)) sel.value = inainte;
+}
+
+/* ------------------------------------------------------- pozele parcelării */
+
+/**
+ * Cele trei poze cu care se deschide pagina unei parcelări. Se țin pe slug, nu
+ * pe indice, ca ștergerea uneia să nu urce a doua în locul primei: locul gol e
+ * o informație, nu o eroare.
+ */
+function randeazaPoze() {
+  const slug = el<HTMLSelectElement>('poze-proiect')?.value ?? '';
+  const lista = pozeParcelare[slug] ?? [];
+  for (const rand of document.querySelectorAll<HTMLElement>('#locuri-poze [data-loc]')) {
+    const i = Number(rand.dataset.loc);
+    const sursa = lista[i] ?? null;
+    const img = rand.querySelector<HTMLImageElement>('.locuri-poze__previzualizare');
+    const scoate = rand.querySelector<HTMLButtonElement>('[data-scoate]');
+    if (img) {
+      img.hidden = !sursa;
+      if (sursa) img.src = sursa;
+      else img.removeAttribute('src');
+    }
+    if (scoate) scoate.hidden = !sursa;
+  }
+}
+
+function legaPozeParcelare() {
+  const sel = el<HTMLSelectElement>('poze-proiect');
+  if (!sel) return;
+  sel.addEventListener('change', randeazaPoze);
+
+  for (let i = 0; i < 3; i += 1) {
+    el<HTMLInputElement>(`poza-${i}`)?.addEventListener('change', async (e) => {
+      const camp = e.target as HTMLInputElement;
+      const fisier = camp.files?.[0];
+      const slug = sel.value;
+      if (!fisier || !slug) return;
+      anunta('Se pregătește poza…', 'lucru');
+      try {
+        const mica = await micsoreazaPoza(fisier);
+        const lista = pozeParcelare[slug] ? [...pozeParcelare[slug]] : [null, null, null];
+        while (lista.length < 3) lista.push(null);
+        lista[i] = mica;
+        pozeParcelare[slug] = lista;
+        anunta('Poza a fost pusă. Publică, apoi deschide pagina parcelării.');
+      } catch (err) {
+        anunta(`Nu am putut folosi poza (${(err as Error).message}).`, 'eroare');
+      } finally {
+        camp.value = '';
+        randeazaPoze();
+        randeaza();
+      }
+    });
+  }
+
+  for (const buton of document.querySelectorAll<HTMLButtonElement>('#locuri-poze [data-scoate]')) {
+    buton.addEventListener('click', () => {
+      const slug = sel.value;
+      const lista = pozeParcelare[slug];
+      if (!lista) return;
+      lista[Number(buton.dataset.scoate)] = null;
+      if (!lista.some(Boolean)) delete pozeParcelare[slug];
+      randeazaPoze();
+      randeaza();
+    });
+  }
+}
+
 function legaTestimoniale() {
   const selectProiect = el<HTMLSelectElement>('tst-proiect');
   if (selectProiect) {
@@ -561,16 +659,27 @@ function legaTestimoniale() {
     t.nume = val('tst-nume');
     t.localitate = val('tst-localitate') || null;
     t.proiect = val('tst-proiect') || null;
-    t.lot = val('tst-lot') || null;
-    const sup = Number(val('tst-suprafata'));
-    t.suprafata = Number.isFinite(sup) && sup > 0 ? Math.round(sup) : null;
+
+    // Lotul ales umple singur codul, suprafața și parcelarea.
+    const idLot = val('tst-lot');
+    const lot = idLot ? loturi.find((l) => l.id === idLot) : null;
+    t.lotId = lot ? lot.id : null;
+    t.lot = lot ? lot.cod : null;
+    t.suprafata = lot ? lot.suprafata : null;
+    if (lot) t.proiect = lot.proiect;
+
     t.data = val('tst-data') || null;
     t.text = val('tst-text');
     t.legendaPoza = val('tst-legenda') || null;
     randeaza();
   };
 
-  for (const id of ['tst-nume', 'tst-localitate', 'tst-proiect', 'tst-lot', 'tst-suprafata', 'tst-data', 'tst-text', 'tst-legenda']) {
+  // Schimbarea parcelării refiltrează lista de loturi înainte de citire.
+  selectProiect?.addEventListener('change', () => {
+    umpleLoturiTestimonial(selectProiect.value);
+  });
+
+  for (const id of ['tst-nume', 'tst-localitate', 'tst-proiect', 'tst-lot', 'tst-data', 'tst-text', 'tst-legenda']) {
     const nod = el<HTMLInputElement>(id);
     nod?.addEventListener('input', laSchimbare);
     nod?.addEventListener('change', laSchimbare);
@@ -1503,6 +1612,7 @@ function umpleSelectoare() {
     `${optiuni}<option value="${NOU}">＋ Parcelare nouă…</option>`,
   );
   pastreaza(el<HTMLSelectElement>('np-model'), optiuni);
+  pastreaza(el<HTMLSelectElement>('poze-proiect'), optiuni);
   pastreaza(el<HTMLSelectElement>('sari-la'), `<option value="">Sari la parcelare…</option>${optiuni}`);
   pastreaza(
     el<HTMLSelectElement>('tst-proiect'),
@@ -1520,5 +1630,7 @@ function comutaParcelareNoua() {
 umpleSelectoare();
 el<HTMLSelectElement>('camp-proiect')?.addEventListener('change', comutaParcelareNoua);
 comutaParcelareNoua();
+legaPozeParcelare();
+randeazaPoze();
 
 actualizeazaAzimut();

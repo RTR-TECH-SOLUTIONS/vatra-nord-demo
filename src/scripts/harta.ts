@@ -1266,12 +1266,22 @@ const pinuri: PinPeHarta[] = [];
 function pinuriDinProiecte(): PinPeHarta[] {
   return proiecte.map((p) => {
     const libere = p.statistici.disponibile;
+    // Prețul mediu pe metru pătrat al loturilor care chiar se pot cumpăra. Un
+    // preț mediu calculat și peste cele vândute ar fi o cifră adevărată pusă
+    // acolo ca să inducă în eroare.
+    const deVanzare = loturi.features.filter(
+      (f) => f.properties.proiect === p.slug && STATUSURI[f.properties.status].vandabil,
+    );
+    const mediu = deVanzare.length
+      ? Math.round(deVanzare.reduce((s, f) => s + f.properties.pret_mp, 0) / deVanzare.length)
+      : null;
     const pin: Pin = {
       id: `parcelare:${p.slug}`,
       nume: p.nume,
       marca: marcaDinNume(p.nume),
       stare: libere > 0 ? 'disponibil' : 'vandut',
       detaliu: libere > 0 ? `${libere} loturi libere` : 'toate loturile vândute',
+      pretMp: mediu,
       legatura: cale(`/parcelari/${p.slug}`),
       lng: (p.bbox[0] + p.bbox[2]) / 2,
       lat: (p.bbox[1] + p.bbox[3]) / 2,
@@ -1311,9 +1321,14 @@ function construiestePinuri(generate: Pin[]) {
   }));
 
   for (const intrare of [...pinuriDinProiecte(), ...proprietati]) {
-    const proiect = intrare.slug ? proiectDupaSlug.get(intrare.slug) : null;
     const nod = elementPin(intrare.pin, {
-      subMarca: proiect ? `${proiect.statistici.disponibile} loturi` : null,
+      // Pe disc scrie prețul pe metru pătrat, nu numărul de loturi: e prima
+      // întrebare a omului și e singura cifră comparabilă între o parcelare și
+      // o tarla răzleață. Numărul de loturi a trecut pe eticheta de dedesubt.
+      subMarca: intrare.pin.pretMp ? `${intrare.pin.pretMp} €/m²` : null,
+      subNume: intrare.slug ? (proiectDupaSlug.get(intrare.slug)?.statistici.disponibile
+        ? `${proiectDupaSlug.get(intrare.slug)!.statistici.disponibile} loturi libere`
+        : 'stoc epuizat') : null,
     });
     if (intrare.slug) nod.classList.add('pin--parcelare');
     nod.addEventListener('click', (ev) => {
@@ -1578,12 +1593,15 @@ function construiestePinuriPret() {
 
 /** Cutia pe care o ocupă un pin pe ecran, după cât din el e afișat. */
 function cutiaPin(x: number, y: number, forma: 'plin' | 'fara-nume' | 'mic') {
+  // Discul a crescut de la 44 la 54 de pixeli când a primit prețul, iar
+  // eticheta are acum două rânduri. Cutiile trebuie să crească odată cu ele,
+  // altfel coliziunile se calculează pe un semn care nu mai există.
   const dim =
     forma === 'plin'
-      ? { l: 148, i: 92 }
+      ? { l: 156, i: 106 }
       : forma === 'fara-nume'
-        ? { l: 96, i: 76 }
-        : { l: 36, i: 44 };
+        ? { l: 108, i: 86 }
+        : { l: 40, i: 48 };
   return { s: x - dim.l / 2, d: x + dim.l / 2, sus: y - dim.i, jos: y };
 }
 

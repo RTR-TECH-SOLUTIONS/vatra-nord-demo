@@ -21,6 +21,12 @@ export interface Pin {
   stare: StarePin;
   /** O linie sub nume: „12 loturi, de la 21.000 €” sau „4.800 m², deschidere 40 m”. */
   detaliu?: string | null;
+  /**
+   * Prețul cerut pe metru pătrat, scris pe disc. E singura cifră care se
+   * compară între o tarla de patru hectare și un lot intravilan de șapte sute
+   * de metri; prețul total al celor două nu spune nimic pus unul lângă altul.
+   */
+  pretMp?: number | null;
   /** Unde duce click-ul. Gol înseamnă că pinul doar arată locul. */
   legatura?: string | null;
   lng: number;
@@ -34,11 +40,18 @@ export interface ConfigStare {
   peCuloare: string;
 }
 
+/**
+ * Panglicile de stare. Aceleași culori vii ca pe pinurile de preț ale
+ * loturilor, ca harta să vorbească o singură limbă la orice scară. Vândutul e
+ * un roșu cărămiziu, nu unul aprins: pe vederea de ansamblu, o proprietate
+ * marcată cu roșu strident ar striga „asta nu mai poți cumpăra” mai tare decât
+ * strigă restul „astea poți”.
+ */
 export const STARI_PIN: Record<StarePin, ConfigStare> = {
-  disponibil: { eticheta: 'Disponibil', culoare: '#2f8f57', peCuloare: '#ffffff' },
-  oferta: { eticheta: 'Ofertă', culoare: '#c08a2a', peCuloare: '#15181a' },
-  in_curand: { eticheta: 'În curând', culoare: '#3e6b7a', peCuloare: '#ffffff' },
-  vandut: { eticheta: 'Vândut', culoare: '#8a9095', peCuloare: '#ffffff' },
+  disponibil: { eticheta: 'Disponibil', culoare: '#17a05a', peCuloare: '#ffffff' },
+  oferta: { eticheta: 'Ofertă', culoare: '#eda01b', peCuloare: '#1c1a14' },
+  in_curand: { eticheta: 'În curând', culoare: '#2b86ad', peCuloare: '#ffffff' },
+  vandut: { eticheta: 'Vândut', culoare: '#a34a3f', peCuloare: '#ffffff' },
 };
 
 export const ORDINE_STARI: StarePin[] = ['disponibil', 'oferta', 'in_curand', 'vandut'];
@@ -46,15 +59,19 @@ export const ORDINE_STARI: StarePin[] = ['disponibil', 'oferta', 'in_curand', 'v
 /**
  * Culorile discurilor.
  *
- * Discul poartă identitatea locului, panglica poartă starea. Așa arată și
- * harta de referință, și e o împărțire bună: două parcelări vecine se
- * deosebesc dintr-o privire, iar „disponibil” rămâne citibil pe amândouă.
- * Paleta e stinsă intenționat, ca semnele să nu concureze cu poligoanele
- * colorate ale loturilor.
+ * Discul poartă identitatea locului, panglica poartă starea: două proprietăți
+ * vecine se deosebesc dintr-o privire, iar „disponibil” rămâne citibil pe
+ * amândouă.
+ *
+ * Paleta a fost stinsă la început, ca semnele să nu concureze cu poligoanele
+ * loturilor. La scara la care se vede tot portofoliul însă nu se vede niciun
+ * poligon, se văd doar semnele, iar zece nuanțe închise una lângă alta arătau
+ * ca un șir de pietre. Acum sunt tari, dar toate destul de închise cât scrisul
+ * alb de pe ele să rămână lizibil.
  */
 const CULORI_DISC = [
-  '#1e5b3c', '#7a4a2b', '#2f6f8f', '#8a2f3b', '#4a5d23',
-  '#5b3a6b', '#2b6a5a', '#8a5a1f', '#3d4f7a', '#6b3f2a',
+  '#1a8f4d', '#cc6612', '#2472c8', '#c22a55', '#6f43c0',
+  '#0d8f8f', '#a8761a', '#d1462c', '#4557c4', '#5f9224',
 ];
 
 /** Aceeași proprietate primește mereu aceeași culoare, fără s-o stocăm. */
@@ -92,8 +109,10 @@ export function marcaDinNume(nume: string): string {
 }
 
 interface OptiuniPin {
-  /** A doua linie din disc: „7 loturi”. Doar parcelările o au. */
+  /** A doua linie din disc. Prețul pe metru pătrat, când se știe. */
   subMarca?: string | null;
+  /** O a doua linie pe eticheta de sub semn: „3 loturi libere”. */
+  subNume?: string | null;
 }
 
 /** Construiește marcajul. Aceeași funcție pe harta publică și în panou. */
@@ -122,7 +141,7 @@ export function elementPin(p: Pin, optiuni: OptiuniPin = {}): HTMLElement {
   marca.textContent = p.marca || marcaDinNume(p.nume);
   disc.append(marca);
 
-  // Cifra din disc e ce lipsea: un semn care spune „7 loturi” înainte de
+  // Cifra din disc e ce lipsea: un semn care spune cât costă metrul înainte de
   // click cântărește altfel decât unul care spune doar „SA”.
   if (optiuni.subMarca) {
     const sub = document.createElement('span');
@@ -141,6 +160,11 @@ export function elementPin(p: Pin, optiuni: OptiuniPin = {}): HTMLElement {
   nume.className = 'pin__nume';
   nume.textContent = p.nume;
   nume.setAttribute('aria-hidden', 'true');
+  if (optiuni.subNume) {
+    const sub = document.createElement('em');
+    sub.textContent = optiuni.subNume;
+    nume.append(sub);
+  }
 
   const ac = document.createElement('span');
   ac.className = 'pin__ac';

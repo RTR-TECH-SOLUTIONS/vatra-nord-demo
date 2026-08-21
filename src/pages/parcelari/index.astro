@@ -29,6 +29,17 @@ const testimoniale = testimonialeJson as unknown as Testimonial[];
       <p class="nota">Disponibilitate actualizată {dataRo(proiecte[0].actualizat)}.</p>
     </header>
 
+    <!-- Două recomandări deasupra listei, restul dedesubt: omul le vede și
+         înainte să aleagă o parcelare, și după. Tăietura e pe aceeași listă,
+         deci niciun card nu apare de două ori. -->
+    <Testimoniale
+      testimoniale={testimoniale}
+      proiecte={proiecte}
+      titlu="Cine a cumpărat de la noi"
+      limita={2}
+      nota={null}
+    />
+
     <ul class="lista">
       {
         proiecte.map((p) => (
@@ -84,11 +95,24 @@ const testimoniale = testimonialeJson as unknown as Testimonial[];
       }
     </ul>
 
-    <Testimoniale testimoniale={testimoniale} proiecte={proiecte} />
+    <Testimoniale
+      testimoniale={testimoniale}
+      proiecte={proiecte}
+      titlu="Și ce a ieșit pe loturi"
+      sari={2}
+      intro={null}
+    />
   </div>
 </Baza>
 
 <style>
+  /* Recomandările stau între antet și listă, respectiv sub listă, deci au
+     nevoie de aer și de o linie care le desparte. */
+  :global(.testimoniale) {
+    padding-block: 2.5rem;
+    border-top: 1px solid var(--color-hairline);
+  }
+
   .continut {
     max-width: 68rem;
     margin-inline: auto;

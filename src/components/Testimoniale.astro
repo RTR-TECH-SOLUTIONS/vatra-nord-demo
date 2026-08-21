@@ -1,11 +1,17 @@
 ---
 /**
- * Secțiunea de testimoniale.
+ * Recomandările cumpărătorilor.
  *
- * Rânduri alternate, fotografie mare pe o parte și citatul pe cealaltă. Nu e
- * carusel: la un carusel omul vede unul singur și pleacă, iar aici tocmai
- * acumularea de cazuri concrete convinge. Nu are nici avatare rotunde, nici
- * steluțe — sunt semne după care se recunoaște un site de-a gata.
+ * Carduri scurte, cu poză, datele lotului și un buton care duce pe hartă exact
+ * pe terenul cumpărat. Structura vine din piață, pentru că funcționează: se
+ * citesc trei într-un minut, spre deosebire de rândurile late de dinainte, pe
+ * care omul le sărea.
+ *
+ * Ce e altfel față de referință: acolo, în locul pozei stă un cerc cu inițiale,
+ * iar recomandarea nu se poate verifica în niciun fel. Aici fiecare card poartă
+ * fotografia primită de la cumpărător și e legat de un lot real din inventar,
+ * marcat vândut pe hartă. Fără avatare rotunde, fără cinci steluțe, fără
+ * carusel: alea trei sunt semnele după care se recunoaște un site de-a gata.
  *
  * Lista vine din datele generate la build. Dacă panoul a publicat alta, un
  * script din pagină o rescrie, ca la restul demo-ului.
@@ -20,12 +26,40 @@ interface Props {
   titlu?: string;
   /** Când e pe pagina unei parcelări, se arată doar ce ține de ea. */
   filtruProiect?: string | null;
+  /**
+   * Câte se arată și de la a câta. Cu ele, aceeași listă poate fi tăiată în
+   * două: câteva deasupra parcelărilor și restul dedesubt, fără să se repete
+   * niciun card.
+   */
+  limita?: number | null;
+  sari?: number;
+  intro?: string | null;
+  nota?: string | null;
 }
 
-const { testimoniale, proiecte, titlu = 'Cine a cumpărat și ce a construit', filtruProiect = null } = Astro.props;
+const {
+  testimoniale,
+  proiecte,
+  titlu = 'Cine a cumpărat și ce a construit',
+  filtruProiect = null,
+  limita = null,
+  sari = 0,
+  intro = 'Fiecare recomandare e legată de lotul cumpărat. Apeși pe buton și ajungi pe el, cu vecinii și cu ce mai e liber în jur.',
+  nota = 'Recomandările din demo sunt fictive. Cele reale, cu pozele primite de la cumpărători, se adaugă din panoul de administrare.',
+} = Astro.props;
 
 const numeProiect = new Map(proiecte.map((p) => [p.slug, p.nume]));
-const lista = filtruProiect ? testimoniale.filter((t) => t.proiect === filtruProiect) : testimoniale;
+const toate = filtruProiect ? testimoniale.filter((t) => t.proiect === filtruProiect) : testimoniale;
+const lista = toate.slice(sari, limita === null ? undefined : sari + limita);
+
+/** Inițialele, pentru cardurile fără poză. */
+const initiale = (nume: string) =>
+  nume
+    .split(/\s+/)
+    .filter((c) => c.length > 2)
+    .slice(0, 2)
+    .map((c) => c[0].toUpperCase())
+    .join('') || nume.slice(0, 2).toUpperCase();
 ---
 
 {
@@ -35,149 +69,175 @@ const lista = filtruProiect ? testimoniale.filter((t) => t.proiect === filtruPro
       id="testimoniale"
       data-testimoniale
       data-filtru={filtruProiect ?? ''}
+      data-sari={String(sari)}
+      data-limita={limita === null ? '' : String(limita)}
       data-proiecte={JSON.stringify(Object.fromEntries(numeProiect))}
       data-baza={cale('/')}
     >
       <h2>{titlu}</h2>
+      {intro && <p class="testimoniale__intro">{intro}</p>}
+
       <ul class="marturii">
         {lista.map((t) => (
-          <li class:list={['marturie', !t.poza && 'marturie--fara-foto']}>
-            {t.poza && (
-              <figure class="marturie__foto">
-                <img
-                  src={t.poza.startsWith('data:') ? t.poza : cale(t.poza)}
-                  alt={t.legendaPoza ?? `Lotul cumpărat de ${t.nume}`}
-                  loading="lazy"
-                  width="1400"
-                  height="1000"
-                />
-                {t.legendaPoza && <figcaption>{t.legendaPoza}</figcaption>}
-              </figure>
+          <li class="marturie">
+            {t.poza ? (
+              <img
+                class="marturie__foto"
+                src={t.poza.startsWith('data:') ? t.poza : cale(t.poza)}
+                alt={t.legendaPoza ?? `Lotul cumpărat de ${t.nume}`}
+                title={t.legendaPoza ?? undefined}
+                loading="lazy"
+                width="560"
+                height="560"
+              />
+            ) : (
+              <span class="marturie__initiale" aria-hidden="true">
+                {initiale(t.nume)}
+              </span>
             )}
+
             <div class="marturie__text">
-              <blockquote>{t.text}</blockquote>
+              <p class="marturie__cine">
+                {t.nume}
+                {t.localitate && <span class="marturie__unde"> — {t.localitate}</span>}
+              </p>
               <p class="marturie__date cifre">{randDate(t, t.proiect ? numeProiect.get(t.proiect) : null)}</p>
-              {
-                t.lotId && (
-                  <a class="marturie__harta" href={cale(`/?parcelare=${t.proiect}&lot=${t.lotId}`)}>
-                    Vezi lotul {t.lot} pe hartă
-                  </a>
-                )
-              }
+              <blockquote>{t.text}</blockquote>
+              {t.lotId && (
+                <a class="buton buton-secundar marturie__harta" href={cale(`/?parcelare=${t.proiect}&lot=${t.lotId}`)}>
+                  Vezi lotul {t.lot} pe hartă
+                </a>
+              )}
             </div>
           </li>
         ))}
       </ul>
+
+      {nota && <p class="testimoniale__nota">{nota}</p>}
     </section>
   )
 }
 
 <style is:global>
+  /* Titlul secțiunii are aceeași greutate ca restul titlurilor de secțiune,
+     oriunde ar fi pusă componenta: pe pagina de parcelări nu există regula
+     locală de `.sectiune`, iar titlul rămânea cât un rând de text. */
   .testimoniale h2 {
-    margin-bottom: 1.5rem;
+    font-family: var(--font-serif);
+    font-size: clamp(1.375rem, 3vw, 1.75rem);
+    line-height: 1.15;
+    margin-bottom: 0.75rem;
+  }
+
+  .testimoniale__intro {
+    max-width: 44rem;
+    margin-bottom: 1.75rem;
+    color: var(--color-ink-2);
+    line-height: 1.6;
   }
 
   .marturii {
     display: flex;
     flex-direction: column;
-    gap: 3rem;
+    gap: 1rem;
+    max-width: 52rem;
   }
 
   .marturie {
     display: grid;
-    grid-template-columns: minmax(0, 5fr) minmax(0, 6fr);
-    gap: 1.75rem 2.5rem;
+    grid-template-columns: 8.5rem minmax(0, 1fr);
+    gap: 1.25rem;
     align-items: start;
+    padding: 1.25rem;
+    border: 1px solid var(--color-hairline);
+    border-radius: var(--radius-panou);
+    background: var(--color-paper-3);
   }
 
-  /* Alternanța ține pagina vie fără să adauge nimic decorativ: aceleași două
-     blocuri, doar schimbate între ele. */
-  .marturie:nth-child(even) .marturie__foto {
-    order: 2;
-  }
-
-  /* Fără fotografie textul ar rămâne pe jumătate de pagină, lângă un gol.
-     Trece pe toată lățimea, dar cu măsură de citit. */
-  .marturie--fara-foto {
-    grid-template-columns: 1fr;
-  }
-
-  .marturie--fara-foto .marturie__text {
-    max-width: 46rem;
-  }
-
+  /* Pătrat cu colțuri rotunjite, nu cerc: în cerc intră un portret de studio,
+     iar aici poza e a locului, nu a feței. */
   .marturie__foto {
-    margin: 0;
-  }
-
-  .marturie__foto img {
-    width: 100%;
-    height: auto;
-    aspect-ratio: 4 / 3;
+    width: 8.5rem;
+    height: 8.5rem;
     object-fit: cover;
     border-radius: var(--radius-panou);
     background: var(--color-paper-2);
+    display: block;
   }
 
-  .marturie__foto figcaption {
-    margin-top: 0.5rem;
+  .marturie__initiale {
+    display: grid;
+    place-content: center;
+    width: 8.5rem;
+    height: 8.5rem;
+    border-radius: var(--radius-panou);
+    background: var(--color-accent);
+    color: var(--color-paper-3);
+    font-family: var(--font-mono);
+    font-size: 1.375rem;
+    letter-spacing: 0.04em;
+  }
+
+  .marturie__cine {
+    font-size: 1.0625rem;
+    font-weight: 500;
+    line-height: 1.3;
+  }
+
+  .marturie__unde {
+    font-weight: 400;
+    color: var(--color-ink-2);
+  }
+
+  .marturie__date {
+    margin-top: 0.2rem;
+    font-family: var(--font-mono);
     font-size: 0.75rem;
-    line-height: 1.45;
+    line-height: 1.5;
     color: var(--color-ink-3);
   }
 
-  .marturie__text blockquote {
-    margin: 0;
+  .marturie blockquote {
+    margin: 0.75rem 0 0;
     font-family: var(--font-serif);
     font-size: 1.0625rem;
     line-height: 1.6;
     color: var(--color-ink);
   }
 
-  /* Linkul spre lotul cumpărat. Aici e diferența față de o secțiune de păreri:
-     povestea se poate verifica pe hartă, cu vecinii și cu ce mai e liber lângă. */
   .marturie__harta {
-    display: inline-block;
-    margin-top: 0.75rem;
+    margin-top: 0.875rem;
+    font-size: 0.875rem;
+    padding: 0.45rem 0.9rem;
+  }
+
+  .testimoniale__nota {
+    margin-top: 1.25rem;
     font-size: 0.8125rem;
-    color: var(--color-accent);
-    text-decoration: underline;
-    text-underline-offset: 3px;
-  }
-
-  .marturie__harta:hover {
-    color: var(--color-ink);
-  }
-
-  .marturie__date {
-    margin-top: 1rem;
-    padding-top: 0.75rem;
-    border-top: 1px solid var(--color-hairline);
-    font-family: var(--font-mono);
-    font-size: 0.75rem;
-    line-height: 1.5;
-    color: var(--color-ink-2);
-  }
-
-  @media (min-width: 768px) {
-    .marturie__text {
-      padding-top: 0.25rem;
-    }
+    color: var(--color-ink-3);
+    max-width: 44rem;
   }
 
   @media (max-width: 767px) {
-    .marturii {
-      gap: 2.25rem;
-    }
     .marturie {
-      grid-template-columns: 1fr;
-      gap: 1rem;
+      grid-template-columns: 5rem minmax(0, 1fr);
+      gap: 0.875rem;
+      padding: 1rem;
     }
-    .marturie:nth-child(even) .marturie__foto {
-      order: 0;
+    .marturie__foto,
+    .marturie__initiale {
+      width: 5rem;
+      height: 5rem;
     }
-    .marturie__text blockquote {
+    .marturie__initiale {
       font-size: 1rem;
+    }
+    .marturie blockquote {
+      font-size: 1rem;
+    }
+    .marturie__harta {
+      width: 100%;
+      justify-content: center;
     }
   }
 </style>
@@ -191,22 +251,35 @@ const lista = filtruProiect ? testimoniale.filter((t) => t.proiect === filtruPro
    * markup-ul de mai sus; e aceeași dublare ca la AplicaPublicat.astro și
    * dispare la proiectul real, unde datele vin din baza de date la build.
    */
-  const sectiune = document.querySelector<HTMLElement>('[data-testimoniale]');
   const publicate = citeste().testimoniale;
 
-  if (sectiune && publicate) {
+  // Pot fi două secțiuni pe aceeași pagină, una deasupra parcelărilor și una
+  // dedesubt, deci nu mai merge `querySelector` pe prima găsită.
+  for (const sectiune of document.querySelectorAll<HTMLElement>('[data-testimoniale]')) {
+    if (!publicate) break;
     const numeProiect = JSON.parse(sectiune.dataset.proiecte || '{}') as Record<string, string>;
     const filtru = sectiune.dataset.filtru || null;
     const baza = sectiune.dataset.baza || '/';
-    const lista = filtru ? publicate.filter((t) => t.proiect === filtru) : publicate;
+    const toate = filtru ? publicate.filter((t) => t.proiect === filtru) : publicate;
+    const sari = Number(sectiune.dataset.sari || 0);
+    const limita = sectiune.dataset.limita ? Number(sectiune.dataset.limita) : null;
+    const lista = toate.slice(sari, limita === null ? undefined : sari + limita);
 
     if (lista.length === 0) {
       sectiune.hidden = true;
+      continue;
     } else {
       sectiune.hidden = false;
       const scapa = (s: string) =>
         s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
       const adresa = (p: string) => (p.startsWith('data:') ? p : `${baza}/${p}`.replace(/\/{2,}/g, '/'));
+      const initiale = (nume: string) =>
+        nume
+          .split(/\s+/)
+          .filter((c) => c.length > 2)
+          .slice(0, 2)
+          .map((c) => c[0].toUpperCase())
+          .join('') || nume.slice(0, 2).toUpperCase();
 
       const ul = sectiune.querySelector('.marturii');
       if (ul) {
@@ -214,19 +287,17 @@ const lista = filtruProiect ? testimoniale.filter((t) => t.proiect === filtruPro
           .map((t: Testimonial) => {
             const legenda = t.legendaPoza ? scapa(t.legendaPoza) : '';
             const foto = t.poza
-              ? `<figure class="marturie__foto">
-                   <img src="${scapa(adresa(t.poza))}" alt="${legenda || `Lotul cumpărat de ${scapa(t.nume)}`}" loading="lazy" width="1400" height="1000" />
-                   ${legenda ? `<figcaption>${legenda}</figcaption>` : ''}
-                 </figure>`
-              : '';
+              ? `<img class="marturie__foto" src="${scapa(adresa(t.poza))}" alt="${legenda || `Lotul cumpărat de ${scapa(t.nume)}`}" ${legenda ? `title="${legenda}"` : ''} loading="lazy" width="560" height="560" />`
+              : `<span class="marturie__initiale" aria-hidden="true">${scapa(initiale(t.nume))}</span>`;
             const unde = t.proiect ? (numeProiect[t.proiect] ?? null) : null;
             const harta = t.lotId
-              ? `<a class="marturie__harta" href="${scapa(`${baza}/?parcelare=${t.proiect ?? ''}&lot=${t.lotId}`.replace(/([^:])\/{2,}/g, '$1/'))}">Vezi lotul ${scapa(t.lot ?? '')} pe hartă</a>`
+              ? `<a class="buton buton-secundar marturie__harta" href="${scapa(`${baza}/?parcelare=${t.proiect ?? ''}&lot=${t.lotId}`.replace(/([^:])\/{2,}/g, '$1/'))}">Vezi lotul ${scapa(t.lot ?? '')} pe hartă</a>`
               : '';
-            return `<li class="marturie${t.poza ? '' : ' marturie--fara-foto'}">${foto}
+            return `<li class="marturie">${foto}
               <div class="marturie__text">
-                <blockquote>${scapa(t.text)}</blockquote>
+                <p class="marturie__cine">${scapa(t.nume)}${t.localitate ? `<span class="marturie__unde"> — ${scapa(t.localitate)}</span>` : ''}</p>
                 <p class="marturie__date cifre">${scapa(randDate(t, unde))}</p>
+                <blockquote>${scapa(t.text)}</blockquote>
                 ${harta}
               </div></li>`;
           })
