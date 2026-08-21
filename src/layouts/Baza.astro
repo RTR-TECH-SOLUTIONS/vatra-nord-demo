@@ -22,6 +22,15 @@ const { titlu, descriere, ecranPlin = false } = Astro.props;
     <title>{titlu}</title>
     {descriere && <meta name="description" content={descriere} />}
     <meta name="robots" content="noindex, nofollow" />
+    <!--
+      Demo-ul se schimbă de câteva ori pe zi cât timp îl vede clientul, iar
+      GitHub Pages servește HTML-ul cu cache. Fișierele de cod și de stil au
+      deja amprentă în nume, deci se reîmprospătează singure; astea sunt pentru
+      pagina în sine, ca nimeni să nu deschidă linkul și să vadă varianta de
+      ieri. La proiectul real se scot: acolo cache-ul e de dorit.
+    -->
+    <meta http-equiv="cache-control" content="no-cache, must-revalidate" />
+    <meta http-equiv="pragma" content="no-cache" />
     <link rel="icon" href={cale("/favicon.svg")} type="image/svg+xml" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />

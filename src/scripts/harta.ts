@@ -13,7 +13,7 @@ import type { Proiect, ProprietatiLot, StatusLot } from '../lib/loturi';
 import { styleBasemap, FONT_HARTA, SURSA_VECTOR, type ModBasemap } from '../lib/basemap';
 import { aplica as aplicaModificari, citeste as citesteDepozit, numaraModificari } from '../lib/depozit';
 import { edificabilLot, potentialConstruire, silueta } from '../lib/parcelare.js';
-import { elementPin, marcaDinNume, STARI_PIN, type Pin } from '../lib/pin';
+import { elementPin, marcaDinNume, pretTotalPin, STARI_PIN, type Pin, type StarePin } from '../lib/pin';
 import { elementPinPret } from '../lib/pinPret';
 import { benziBuget, type BandaBuget } from '../lib/buget';
 import { planLot } from '../lib/plan';
@@ -135,6 +135,9 @@ interface Filtre {
   statusuri: Set<StatusLot>;
   supMin: number;
   supMax: number;
+  /** Capetele întregi ale sliderului, ca să știm dacă omul chiar l-a mișcat. */
+  supMinTot: number;
+  supMaxTot: number;
   pretMin: number;
   pretMax: number;
 }
@@ -158,6 +161,8 @@ const filtre: Filtre = {
   statusuri: new Set(ORDINE_STATUS),
   supMin: 0,
   supMax: Infinity,
+  supMinTot: 0,
+  supMaxTot: Infinity,
   pretMin: 0,
   pretMax: Infinity,
 };
@@ -175,6 +180,41 @@ function expresieFiltru(status: StatusLot): unknown[] {
   ];
   if (filtre.proiect !== 'toate') conditii.push(['==', ['get', 'proiect'], filtre.proiect]);
   return conditii;
+}
+
+/**
+ * Cum se citește starea unei proprietăți răzlețe în limbajul stărilor de lot.
+ * „Ofertă” e un teren pe care se negociază, adică rezervat; „în curând” e unul
+ * care nu se poate cumpăra încă, adică în pregătire.
+ */
+const STARE_CA_STATUS: Record<StarePin, StatusLot> = {
+  disponibil: 'disponibil',
+  oferta: 'rezervat',
+  in_curand: 'in_pregatire',
+  vandut: 'vandut',
+};
+
+/**
+ * Aceleași filtre, aplicate proprietăților răzlețe.
+ *
+ * Bugetul și suprafața se aplică doar dacă omul le-a atins: intervalul de
+ * suprafață pornește de la loturile parcelate, deci un teren de două hectare ar
+ * cădea din prima, iar portofoliul ar dispărea la simpla încărcare a paginii.
+ * Cât timp filtrele stăteau doar pe loturi, două treimi din listă nu reacționau
+ * la nimic și părea că filtrele nu merg.
+ */
+function treceFiltrelePin(pin: Pin): boolean {
+  if (!filtre.statusuri.has(STARE_CA_STATUS[pin.stare])) return false;
+
+  const total = pretTotalPin(pin);
+  const bugetPus = filtre.pretMin > 0 || filtre.pretMax !== Infinity;
+  if (bugetPus && total !== null && (total < filtre.pretMin || total >= filtre.pretMax)) return false;
+
+  const supPusa = filtre.supMin > filtre.supMinTot || filtre.supMax < filtre.supMaxTot;
+  if (supPusa && pin.suprafata && (pin.suprafata < filtre.supMin || pin.suprafata > filtre.supMax)) {
+    return false;
+  }
+  return true;
 }
 
 function treceFiltrele(p: ProprietatiLot): boolean {
@@ -276,6 +316,42 @@ function actualizeazaContoare() {
   for (const b of benziCurente) {
     scrie(b.id, fara.filter((f) => f.properties.pret_total >= b.min && f.properties.pret_total < b.max).length);
   }
+
+  actualizeazaPortofoliu();
+}
+
+/**
+ * Rândurile din portofoliu care nu mai au ce arăta ies din listă, iar cifra din
+ * capul ei le numără pe cele rămase. Fără asta, filtrul mișca doar harta, iar
+ * lista de dedesubt rămânea aceeași — adică exact impresia că filtrele nu merg.
+ */
+function actualizeazaPortofoliu() {
+  let vizibile = 0;
+  let total = 0;
+  for (const buton of document.querySelectorAll<HTMLButtonElement>('[data-portofoliu]')) {
+    const cheie = buton.dataset.portofoliu!;
+    const rand = buton.closest('li');
+    if (!rand || cheie === 'toate') continue;
+
+    const trece =
+      buton.dataset.fel === 'teren'
+        ? (() => {
+            const p = pinuri.find((x) => x.pin.id === cheie)?.pin;
+            return p ? treceFiltrelePin(p) : true;
+          })()
+        : parcelareaAreLoturi(cheie);
+
+    total += 1;
+    rand.hidden = !trece;
+    if (trece) vizibile += 1;
+  }
+
+  const contor = document.querySelector<HTMLElement>('.camp--portofoliu .camp__nr');
+  if (contor) contor.textContent = String(vizibile);
+  // Totalul se numără din rânduri, nu din pinuri: contoarele se recalculează și
+  // înainte ca semnele să fie puse pe hartă, iar atunci ar scrie „din 0”.
+  const toate = document.querySelector<HTMLElement>('[data-portofoliu="toate"] .rand__pret');
+  if (toate) toate.textContent = `${vizibile} din ${total}`;
 }
 
 /* ----------------------------------------------------------------- straturi */
@@ -1198,6 +1274,8 @@ function reseteazaIntervale() {
 
   filtre.supMin = sMin;
   filtre.supMax = sMax;
+  filtre.supMinTot = sMin;
+  filtre.supMaxTot = sMax;
   filtre.pretMin = 0;
   filtre.pretMax = Infinity;
 
@@ -1591,6 +1669,11 @@ function construiestePinuriPret() {
   }
 }
 
+/** Are parcelarea vreun lot care trece de filtrele curente? */
+function parcelareaAreLoturi(slug: string): boolean {
+  return loturi.features.some((f) => f.properties.proiect === slug && treceFiltrele(f.properties));
+}
+
 /** Cutia pe care o ocupă un pin pe ecran, după cât din el e afișat. */
 function cutiaPin(x: number, y: number, forma: 'plin' | 'fara-nume' | 'mic') {
   // Discul a crescut de la 44 la 54 de pixeli când a primit prețul, iar
@@ -1654,6 +1737,9 @@ function asazaPinuri() {
     else if (slug && (z > 15.4 || filtre.proiect === slug)) ascuns = true;
     // Proprietățile răzlețe se retrag când te uiți de aproape la parcele.
     else if (!slug && z > 17.4) ascuns = true;
+    // Filtrele din panou se aplică și lor, nu doar loturilor.
+    else if (!slug && !treceFiltrelePin(pin)) ascuns = true;
+    else if (slug && !parcelareaAreLoturi(slug)) ascuns = true;
 
     nod.classList.toggle('pin--ascuns', ascuns);
     if (ascuns) continue;

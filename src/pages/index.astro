@@ -5,7 +5,7 @@ import proiecteJson from '../data/proiecte.json';
 import loturiJson from '../data/loturi.json';
 import { STATUSURI, ORDINE_STATUS, dataRo } from '../lib/loturi';
 import pinuriJson from '../data/pinuri.json';
-import { STARI_PIN, marcaDinNume, type Pin } from '../lib/pin';
+import { STARI_PIN, marcaDinNume, culoareDisc, type Pin } from '../lib/pin';
 import type { Proiect, ProprietatiLot } from '../lib/loturi';
 import { areCheie, areMapbox } from '../lib/basemap';
 import { benziBuget } from '../lib/buget';
@@ -27,6 +27,18 @@ const pretMinim = Math.min(
 // Benzile de buget se randează și la build, ca panoul să nu apară gol până
 // pornește harta. Scriptul le recalculează pe parcelarea aleasă.
 const benzi = benziBuget(loturi.features.map((f) => f.properties.pret_total));
+
+// Prețul mediu pe metru pătrat al fiecărei parcelări, peste loturile care chiar
+// se pot cumpăra. Aceeași cifră ca pe discul de pe hartă, ca lista și harta să
+// spună același lucru.
+const pretMediu = new Map(
+  proiecte.map((p) => {
+    const ale = loturi.features
+      .map((f) => f.properties)
+      .filter((l) => l.proiect === p.slug && STATUSURI[l.status].vandabil);
+    return [p.slug, ale.length ? Math.round(ale.reduce((s, l) => s + l.pret_mp, 0) / ale.length) : null];
+  }),
+);
 ---
 
 <Baza
@@ -146,7 +158,7 @@ const benzi = benziBuget(loturi.features.map((f) => f.properties.pret_total));
                   <span class="rand__nume">Toate</span>
                   <span class="rand__sub">parcelări și terenuri</span>
                 </span>
-                <span class="rand__nr cifre">{proiecte.length + proprietati.length}</span>
+                <span class="rand__pret cifre">{proiecte.length + proprietati.length} din {proiecte.length + proprietati.length}</span>
               </button>
             </li>
             {
@@ -159,18 +171,23 @@ const benzi = benziBuget(loturi.features.map((f) => f.properties.pret_total));
                     data-fel="parcelare"
                     aria-pressed="false"
                   >
-                    <span
-                      class="rand__marca"
-                      style={`--c: ${p.statistici.disponibile > 0 ? STARI_PIN.disponibil.culoare : STARI_PIN.vandut.culoare}`}
-                      aria-hidden="true"
-                    >
+                    <span class="rand__marca" style={`--c: ${culoareDisc(`parcelare:${p.slug}`)}`} aria-hidden="true">
                       {marcaDinNume(p.nume)}
                     </span>
                     <span class="rand__text">
                       <span class="rand__nume">{p.nume}</span>
-                      <span class="rand__sub">{p.localitate} · parcelare</span>
+                      <span class="rand__sub">
+                        {p.localitate} · {p.statistici.disponibile} loturi libere
+                      </span>
                     </span>
-                    <span class="rand__nr cifre">{p.statistici.disponibile}</span>
+                    <span class="rand__pret cifre">
+                      <i
+                        class="rand__bulina"
+                        style={`--c: ${p.statistici.disponibile > 0 ? STARI_PIN.disponibil.culoare : STARI_PIN.vandut.culoare}`}
+                        aria-hidden="true"
+                      />
+                      {pretMediu.get(p.slug) ? `${pretMediu.get(p.slug)} €/m²` : '—'}
+                    </span>
                   </button>
                 </li>
               ))
@@ -185,15 +202,16 @@ const benzi = benziBuget(loturi.features.map((f) => f.properties.pret_total));
                     data-fel="teren"
                     aria-pressed="false"
                   >
-                    <span class="rand__marca" style={`--c: ${STARI_PIN[t.stare].culoare}`} aria-hidden="true">
+                    <span class="rand__marca" style={`--c: ${culoareDisc(t.id)}`} aria-hidden="true">
                       {t.marca}
                     </span>
                     <span class="rand__text">
                       <span class="rand__nume">{t.nume}</span>
                       <span class="rand__sub">{t.detaliu}</span>
                     </span>
-                    <span class="rand__stare" style={`--c: ${STARI_PIN[t.stare].culoare}`}>
-                      {STARI_PIN[t.stare].eticheta}
+                    <span class="rand__pret cifre">
+                      <i class="rand__bulina" style={`--c: ${STARI_PIN[t.stare].culoare}`} aria-hidden="true" />
+                      {t.pretMp ? `${t.pretMp} €/m²` : '—'}
                     </span>
                   </button>
                 </li>
@@ -1057,6 +1075,10 @@ const benzi = benziBuget(loturi.features.map((f) => f.properties.pret_total));
 
   /* Discul din listă e același semn ca pe hartă, la scară mică: te uiți în
      panou și știi ce cauți pe hartă, fără legendă în plus. */
+  /* Discul din listă e chiar semnul de pe hartă, la scară mică și în aceeași
+     culoare: te uiți în panou și știi ce cauți pe hartă, fără legendă în plus.
+     Înainte era un cerc gol conturat cu culoarea stării, deci lista și harta
+     arătau ca două sisteme diferite. */
   .rand__marca {
     display: grid;
     place-items: center;
@@ -1064,16 +1086,46 @@ const benzi = benziBuget(loturi.features.map((f) => f.properties.pret_total));
     width: 26px;
     height: 26px;
     border-radius: 50%;
-    border: 1.5px solid var(--c, var(--color-hairline));
-    background: var(--color-paper-3);
+    background: var(--c, var(--color-ink-3));
+    border: 1.5px solid rgb(255 255 255 / 0.85);
+    box-shadow: 0 0 0 1px var(--color-hairline);
     font-family: var(--font-mono);
-    font-size: 0.625rem;
-    color: var(--color-ink);
+    font-size: 0.5625rem;
+    letter-spacing: 0.02em;
+    color: #fff;
   }
 
   .rand__marca--toate {
-    border-style: dashed;
+    background: transparent;
+    border: 1.5px dashed var(--color-hairline);
+    box-shadow: none;
     color: var(--color-ink-3);
+  }
+
+  /* Prețul pe metru pătrat, cu bulina de stare lângă el. */
+  .rand__pret {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex: none;
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    color: var(--color-ink);
+    white-space: nowrap;
+  }
+
+  .rand__bulina {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--c);
+    flex: none;
+  }
+
+  /* Rândurile scoase de filtre dispar din listă. Cât timp rămâneau toate pe
+     loc, filtrul părea că nu face nimic pe două treimi din portofoliu. */
+  .portofoliu li[hidden] {
+    display: none;
   }
 
   .rand__text {
