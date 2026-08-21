@@ -221,6 +221,33 @@ const pretMinim = Math.min(
       )
     }
 
+    <!-- Fișa parcelării, deschisă din pin sau din portofoliu. -->
+    <aside id="card-parcelare" class="card-parcelare panou" hidden aria-labelledby="cp-nume">
+      <button type="button" id="cp-inchide" class="card-parcelare__inchide" aria-label="Închide">×</button>
+      <p class="card-parcelare__eticheta">Parcelare</p>
+      <h2 id="cp-nume" class="card-parcelare__nume"></h2>
+      <p id="cp-unde" class="card-parcelare__unde"></p>
+
+      <p class="card-parcelare__cifre cifre">
+        <strong id="cp-disponibile"></strong>
+        <span id="cp-pret"></span>
+      </p>
+
+      <p id="cp-descriere" class="card-parcelare__descriere"></p>
+
+      <ul id="cp-utilitati" class="card-parcelare__utilitati"></ul>
+
+      <div class="card-parcelare__tabel">
+        <p class="card-parcelare__subtitlu">Cele mai ieftine loturi libere</p>
+        <ul id="cp-loturi" class="card-parcelare__loturi cifre"></ul>
+      </div>
+
+      <div class="card-parcelare__actiuni">
+        <button type="button" id="cp-intra" class="buton buton-primar">Vezi loturile</button>
+        <a id="cp-pagina" class="buton buton-secundar" href="#">Detalii</a>
+      </div>
+    </aside>
+
     <p id="nota-publicat" class="nota-publicat panou" hidden></p>
 
     <p class="nota-demo">
@@ -385,6 +412,198 @@ const pretMinim = Math.min(
     .marca-mapbox {
       left: 10px;
       bottom: 123px;
+    }
+  }
+
+  /* --------------------------------------------------- fișa parcelării */
+  /* Fișa începe sub comutatorul de fundal și se oprește deasupra controalelor
+     de zoom: altfel le acoperă exact pe amândouă, iar omul rămâne fără cum să
+     schimbe fundalul cât are fișa deschisă. */
+  .card-parcelare {
+    position: absolute;
+    top: 57px;
+    right: 16px;
+    z-index: 11;
+    width: 22rem;
+    max-height: calc(100% - 57px - 152px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 16px 18px 18px;
+    border-radius: var(--radius-panou);
+  }
+
+  .card-parcelare__inchide {
+    position: absolute;
+    top: 8px;
+    right: 10px;
+    font-size: 1.25rem;
+    line-height: 1;
+    color: var(--color-ink-3);
+    padding: 4px;
+  }
+
+  .card-parcelare__inchide:hover {
+    color: var(--color-ink);
+  }
+
+  .card-parcelare__eticheta {
+    font-size: 0.6875rem;
+    color: var(--color-ink-3);
+  }
+
+  .card-parcelare__nume {
+    margin-top: 2px;
+    font-family: var(--font-serif);
+    font-size: 1.375rem;
+    line-height: 1.15;
+  }
+
+  .card-parcelare__unde {
+    margin-top: 2px;
+    font-size: 0.8125rem;
+    color: var(--color-ink-2);
+  }
+
+  .card-parcelare__cifre {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 10px;
+    align-items: baseline;
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--color-hairline);
+    font-family: var(--font-mono);
+    font-size: 0.8125rem;
+    color: var(--color-ink-2);
+  }
+
+  .card-parcelare__cifre strong {
+    font-weight: 500;
+    color: var(--color-ink);
+  }
+
+  .card-parcelare__descriere {
+    margin-top: 10px;
+    font-size: 0.8125rem;
+    line-height: 1.5;
+    color: var(--color-ink-2);
+  }
+
+  /* Utilitățile spun și ce NU e gata, cu detaliul lângă. Concurentul pune
+     patru bife și atât, ceea ce e exact formularea pe care piața a învățat
+     să nu o creadă. */
+  .card-parcelare__utilitati {
+    margin-top: 12px;
+    display: grid;
+    gap: 5px;
+  }
+
+  .card-parcelare__utilitati li {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    font-size: 0.75rem;
+    line-height: 1.4;
+  }
+
+  .card-parcelare__utilitati b {
+    flex: none;
+    width: 5.5rem;
+    font-weight: 400;
+    color: var(--color-ink);
+  }
+
+  .card-parcelare__utilitati span {
+    color: var(--color-ink-3);
+  }
+
+  .card-parcelare__utilitati [data-gata='da'] b::before {
+    content: '✓ ';
+    color: var(--color-disponibil);
+  }
+
+  .card-parcelare__utilitati [data-gata='nu'] b::before {
+    content: '· ';
+    color: var(--color-ink-3);
+  }
+
+  .card-parcelare__tabel {
+    margin-top: 14px;
+    padding-top: 12px;
+    border-top: 1px solid var(--color-hairline);
+  }
+
+  .card-parcelare__subtitlu {
+    font-size: 0.75rem;
+    color: var(--color-ink-3);
+    margin-bottom: 6px;
+  }
+
+  .card-parcelare__loturi {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2px 12px;
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+  }
+
+  .card-parcelare__loturi button {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    width: 100%;
+    padding: 3px 0;
+    text-align: left;
+  }
+
+  .card-parcelare__loturi button:hover {
+    color: var(--color-accent);
+  }
+
+  .card-parcelare__loturi em {
+    font-style: normal;
+    color: var(--color-ink-3);
+  }
+
+  .card-parcelare__actiuni {
+    display: flex;
+    gap: 8px;
+    margin-top: 14px;
+  }
+
+  .card-parcelare__actiuni .buton {
+    flex: 1;
+  }
+
+  @media (max-width: 767px) {
+    .card-parcelare {
+      top: auto;
+      right: 8px;
+      left: 8px;
+      bottom: 62px;
+      width: auto;
+      max-height: 62%;
+    }
+
+    /* Cu fișa deschisă, jumătatea de jos a hărții e acoperită. Zoomul și scara
+       devin oricum inutilizabile acolo, dar marca Mapbox și atribuirea trebuie
+       să rămână vizibile, e obligație de licență, deci urcă deasupra fișei. */
+    .ecran-harta[data-fisa] #harta .maplibregl-ctrl-bottom-left,
+    .ecran-harta[data-fisa] #harta .maplibregl-ctrl-group {
+      display: none;
+    }
+
+    .ecran-harta[data-fisa] #harta .maplibregl-ctrl-bottom-right {
+      top: 8px;
+      bottom: auto;
+      left: 8px;
+      right: auto;
+    }
+
+    .ecran-harta[data-fisa] .marca-mapbox {
+      top: 40px;
+      bottom: auto;
+      left: 10px;
     }
   }
 
