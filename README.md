@@ -1,62 +1,33 @@
-# Terenuri Boerescu — demo de prezentare pentru vânzare de loturi
+# Vatra Nord Demo 🗺️
 
-Demo pentru un dezvoltator care vinde loturi de casă în Ilfov nord. Harta e
-pagina principală, nu o secțiune: intri pe site și vezi direct ce e de vânzare
-și unde.
+A map-first website for selling house plots north of Bucharest. It also has an admin editor where you can draw and split land plots.
 
-**Previzualizare:** https://rtr-tech-solutions.github.io/vatra-nord-demo/
+🔗 **Live:** https://rtr-tech-solutions.github.io/vatra-nord-demo/
 
-> Datele sunt fictive. Parcelările, prețurile, disponibilitatea și proprietățile
-> din portofoliu sunt inventate pentru demo. Coordonatele sunt însă reale, iar
-> geometria e generată peste imagini satelitare reale.
+![Astro](https://img.shields.io/badge/Astro-BC52EE?style=for-the-badge&logo=astro&logoColor=white) ![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=for-the-badge&logo=typescript&logoColor=white) ![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-06B6D4?style=for-the-badge&logo=tailwindcss&logoColor=white) ![MapLibre](https://img.shields.io/badge/MapLibre-396CB2?style=for-the-badge&logo=maplibre&logoColor=white) ![GitHub Pages](https://img.shields.io/badge/GitHub_Pages-222222?style=for-the-badge&logo=githubpages&logoColor=white)
 
-## Ce are
+## About
+Most land sites hide the map halfway down the page. Here the map is the home page, so you see right away what is for sale and what it costs. This is a demo I made as a pitch, so the brand, prices and plots are made up. The site is in Romanian.
 
-- **Harta ca landing.** 18 loturi în 3 fâșii de câte cinci-șapte, plus 20 de
-  proprietăți răzlețe ca pinuri. Fiecare lot are pe hartă un semn cu prețul lui.
-  Filtre pe stare, benzi de buget și portofoliu, cu legendă care e chiar filtrul.
-- **Două fundaluri, amândouă desenate de noi.** „Hartă” e o planșă proprie,
-  construită din dale OpenMapTiles în limbajul planului de situație. „Satelit” e
-  imaginea aeriană gradată, ca poligoanele loturilor să iasă în față.
-- **Fișă de lot ca panou**, cu prețul și cu TVA, rata lunară, planul desenat al
-  lotului între vecinii lui și butoanele de contact. „Vezi de la stradă” coboară
-  camera la nivelul solului și ridică volumul casei maxime admise, la înălțimea
-  reală de cornișă.
-- **Pagină per lot** cu plan de amplasament vectorial (cote, retrageri, silueta
-  casei maxime), „ce poți construi aici”, unde e pe imaginea aeriană, utilități,
-  rate și vecinătăți.
-- **Panou de administrare** (`/demo-admin`): desenezi loturi, le împarți, le
-  unești, generezi o parcelare întreagă dintr-un contur — inclusiv o parcelare
-  nouă, cu nume și localitate —, pui pinuri de proprietate, scrii testimoniale
-  și publici pe hartă.
+## Features
+- Interactive map with price pins on every plot, colored by status
+- Filters for status, budget, plot area and subdivision
+- Map and satellite views, plus 3D buildings
+- Side panel for each plot, and a "view from the street" mode
+- A separate page for every plot and every subdivision
+- Admin panel to draw, split and merge plots, then publish them to the map
 
-## Cum se rulează
+## Tech stack
+- **Frontend:** Astro, TypeScript, Tailwind CSS
+- **Maps:** MapLibre GL JS, Terra Draw, Turf.js
+- **Hosting:** GitHub Pages
 
+## Run it locally
 ```bash
 npm install
-npm run dev      # generează datele, copiază workerul MapLibre, pornește Astro
-npm run build    # la fel, apoi build static în dist/
+npm run dev
 ```
-
-Scripturi utile:
-
-| comandă | ce face |
-| --- | --- |
-| `npm run date` | regenerează parcelările și portofoliul în `src/data` și `public/date` |
-| `npm run obstacole` | descarcă din OpenStreetMap drumurile, clădirile și apa din jurul siturilor |
-| `npm run imagini` | descarcă imaginile aeriene folosite pe paginile de lot |
-
-## Note tehnice
-
-- **Workerul MapLibre** e copiat în `public/maplibre/` de `scripts/copiaza-worker.mjs`
-  și încărcat explicit cu `setWorkerUrl`. Fără asta Vite îl mută, iar sursele
-  GeoJSON rămân goale fără nicio eroare în consolă.
-- **Căile interne** trec prin `cale()` din `src/lib/cale.ts`, ca previzualizarea
-  servită dintr-un subfolder să funcționeze fără modificări în cod.
-- **Fundalul satelit** e Esri, folosit doar ca provizoriu pentru preview. Pentru
-  producție se pune `PUBLIC_MAPTILER_KEY` în `.env` și satelitul vine de la
-  MapTiler, cu drept de uz comercial.
+The site works without any keys. You need Node.js 22.12 or newer.
 
 ---
-
-Făcut de [RTR Tech Solutions](https://github.com/RTR-TECH-SOLUTIONS).
+Made by **Mario Rotaru** · [RTR Tech Solutions](https://rtrsolutions.ro)
