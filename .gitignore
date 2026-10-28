@@ -11,5 +11,3 @@ graphify-out/
 _research/audit/
 _research/demo/
 
-# Scripturile de workflow salvate local de unelte, nu de proiect.
-.claude/
